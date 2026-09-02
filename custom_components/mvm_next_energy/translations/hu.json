@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MVM Next Energy Import",
+        "description": "Add meg azt a könyvtárat, ahová a letöltött MVM Next CSV export fájlokat másolod.",
+        "data": {
+          "import_dir": "Import könyvtár"
+        }
+      }
+    },
+    "error": {
+      "invalid_dir": "A megadott könyvtár nem létrehozható vagy nem elérhető."
+    },
+    "abort": {
+      "already_configured": "Az integráció már be van állítva."
+    }
+  },
+  "services": {
+    "import": {
+      "name": "MVM CSV importálása",
+      "description": "Beolvassa a beállított könyvtárban található MVM Next CSV export fájlokat, és frissíti a long-term statisztikát.",
+      "fields": {
+        "file_path": {
+          "name": "Fájl elérési út",
+          "description": "Opcionális: egyetlen CSV fájl kényszerített újrafeldolgozása."
+        }
+      }
+    }
+  }
+}

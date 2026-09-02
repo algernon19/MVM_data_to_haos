@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MVM Next Energy Import",
+        "description": "Choose the directory where you copy the downloaded MVM Next CSV export files.",
+        "data": {
+          "import_dir": "Import directory"
+        }
+      }
+    },
+    "error": {
+      "invalid_dir": "The given directory could not be created or is not accessible."
+    },
+    "abort": {
+      "already_configured": "The integration is already configured."
+    }
+  },
+  "services": {
+    "import": {
+      "name": "Import MVM CSV",
+      "description": "Reads the MVM Next CSV export files from the configured directory and updates the long-term statistic.",
+      "fields": {
+        "file_path": {
+          "name": "File path",
+          "description": "Optional: force re-processing of a single CSV file."
+        }
+      }
+    }
+  }
+}

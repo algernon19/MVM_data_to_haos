@@ -1,0 +1,19 @@
+import:
+  name: MVM CSV importálása
+  description: >-
+    Beolvassa a beállított könyvtárban (alapértelmezetten /config/mvm_next)
+    található MVM Next CSV export fájlokat, és frissíti a
+    mvm_next:imported_consumption long-term statisztikát. A már ismert és
+    változatlan fájlokat kihagyja, a módosítottakat és az újakat feldolgozza.
+  fields:
+    file_path:
+      name: Fájl elérési út
+      description: >-
+        Opcionális: egyetlen CSV fájl kényszerített újrafeldolgozása
+        (abszolút útvonal, vagy az import könyvtárhoz viszonyított relatív
+        fájlnév). Ha üresen marad, a teljes import könyvtár átvizsgálásra
+        kerül.
+      required: false
+      example: "/config/mvm_next/meresi_adatok_augusztus.csv"
+      selector:
+        text:

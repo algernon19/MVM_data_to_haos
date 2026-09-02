@@ -1,0 +1,13 @@
+{
+  "domain": "mvm_next_energy",
+  "name": "MVM Next Energy Import",
+  "codeowners": ["@algernon19"],
+  "config_flow": true,
+  "dependencies": ["recorder"],
+  "documentation": "https://github.com/algernon19/mvm-next-energy-import",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/algernon19/mvm-next-energy-import/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
