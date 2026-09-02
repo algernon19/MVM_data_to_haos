@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -36,6 +36,7 @@ class MvmNextImportSensor(SensorEntity):
             async_dispatcher_connect(self.hass, SIGNAL_UPDATE, self._handle_update)
         )
 
+    @callback
     def _handle_update(self) -> None:
         self.async_write_ha_state()
 

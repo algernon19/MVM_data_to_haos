@@ -216,9 +216,16 @@ class MvmImportCoordinator:
                 shutil.copyfile(src, dest)
             return target_name
 
+        _LOGGER.debug("MVM Next: feltöltés indul, file_id=%s", file_id)
         stored_name = await self.hass.async_add_executor_job(_store)
-        _LOGGER.info("MVM Next: feltöltött fájl mentve: %s", stored_name)
+        _LOGGER.info(
+            "MVM Next: feltöltött fájl mentve ide: %s", self.import_dir / stored_name
+        )
         await self.async_import(stored_name)
+        _LOGGER.info(
+            "MVM Next: feltöltés feldolgozva, %s óra a statisztikában",
+            self.attributes.get("imported_hours"),
+        )
 
     async def async_import(self, file_path: str | None) -> None:
         """Scan the import directory and (re)push updated statistics.

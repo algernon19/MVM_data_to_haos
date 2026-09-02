@@ -25,11 +25,15 @@
           "file": "CSV file",
           "filename": "Saved file name (optional)"
         }
+      },
+      "done": {
+        "title": "Upload complete",
+        "description": "File `{source_file}` processed.\n\n- Imported hours: {imported_hours}\n- Imported quarters: {imported_quarters}\n- Total energy: {total_energy} kWh\n- Last import: {last_quarter}\n\nThe data shows up in the `mvm_next:imported_consumption` statistic and on the Energy dashboard."
       }
     },
     "error": {
       "not_loaded": "The integration is not loaded. Restart Home Assistant and try again.",
-      "upload_failed": "Processing the uploaded file failed. Check that it is a genuine MVM Next CSV export."
+      "upload_failed": "Processing the uploaded file failed: {error}"
     }
   },
   "services": {

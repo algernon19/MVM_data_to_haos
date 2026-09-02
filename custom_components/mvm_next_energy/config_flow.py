@@ -1,6 +1,7 @@
 """Config flow for the MVM Next Energy Import integration."""
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
@@ -19,6 +20,8 @@ from .const import (
     DEFAULT_IMPORT_DIR,
     DOMAIN,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class MvmNextEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -82,6 +85,7 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         errors: dict[str, str] = {}
+        self._upload_error = ""
 
         if user_input is not None:
             coordinator = self.hass.data.get(DOMAIN, {}).get(
@@ -94,14 +98,16 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
                 try:
                     await coordinator.async_upload(user_input[ATTR_FILE], filename)
                 except HomeAssistantError as err:
+                    _LOGGER.exception("MVM Next feltöltés hiba")
                     errors["base"] = "upload_failed"
                     self._upload_error = str(err)
-                except Exception:  # noqa: BLE001 - surface any parse/IO failure
+                except Exception as err:  # noqa: BLE001 - surface any parse/IO failure
+                    _LOGGER.exception("MVM Next feltöltés hiba")
                     errors["base"] = "upload_failed"
+                    self._upload_error = str(err)
                 else:
-                    return self.async_create_entry(
-                        title="", data=dict(self.config_entry.options)
-                    )
+                    self._result = dict(coordinator.attributes)
+                    return await self.async_step_done()
 
         schema = vol.Schema(
             {
@@ -115,7 +121,26 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
             step_id="upload",
             data_schema=schema,
             errors=errors,
+            description_placeholders={"error": self._upload_error},
+        )
+
+    async def async_step_done(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if user_input is not None:
+            return self.async_create_entry(
+                title="", data=dict(self.config_entry.options)
+            )
+
+        result = getattr(self, "_result", {}) or {}
+        return self.async_show_form(
+            step_id="done",
+            data_schema=vol.Schema({}),
             description_placeholders={
-                "error": getattr(self, "_upload_error", "") or ""
+                "source_file": str(result.get("source_file", "-")),
+                "imported_hours": str(result.get("imported_hours", "-")),
+                "imported_quarters": str(result.get("imported_quarters", "-")),
+                "total_energy": str(result.get("total_energy", "-")),
+                "last_quarter": str(result.get("last_import", "-")),
             },
         )

@@ -25,11 +25,15 @@
           "file": "CSV fájl",
           "filename": "Mentett fájlnév (opcionális)"
         }
+      },
+      "done": {
+        "title": "Feltöltés kész",
+        "description": "A(z) `{source_file}` fájl feldolgozva.\n\n- Importált órák: {imported_hours}\n- Importált negyedórák: {imported_quarters}\n- Összes energia: {total_energy} kWh\n- Utolsó import: {last_quarter}\n\nAz adatok az `mvm_next:imported_consumption` statisztikában és az Energia irányítópulton jelennek meg."
       }
     },
     "error": {
       "not_loaded": "Az integráció nincs betöltve. Indítsd újra a Home Assistantot, majd próbáld újra.",
-      "upload_failed": "A feltöltött fájl feldolgozása nem sikerült. Ellenőrizd, hogy valódi MVM Next CSV export-e."
+      "upload_failed": "A feltöltött fájl feldolgozása nem sikerült: {error}"
     }
   },
   "services": {
