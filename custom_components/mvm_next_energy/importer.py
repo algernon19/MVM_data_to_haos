@@ -58,13 +58,23 @@ class ParsedFile:
 
 
 def _parse_csv_file(path: Path) -> ParsedFile:
-    """Parse one MVM Next CSV export file (blocking, run in executor)."""
+    """Parse one MVM Next CSV export file (blocking, run in executor).
+
+    Deduplication rules, so a doubled or overlapping export never inflates a
+    reading:
+
+    * Within one file each 15-minute timestamp maps to exactly ONE value. If
+      the same local timestamp shows up again it is either the repeated hour of
+      the autumn DST fall-back night (at most four quarter-hours, kept as the
+      post-transition ``fold=1`` occurrence) or an accidentally duplicated /
+      concatenated row (every extra occurrence is dropped, with a warning).
+    * The four quarter-hours of an hour are summed into that hour – that is the
+      only place values are added together.
+    """
     stat = path.stat()
     result = ParsedFile(mtime=stat.st_mtime, size=stat.st_size)
-    hourly: dict[datetime, float] = {}
-    seen_naive: dict[datetime, int] = {}
-    last_quarter_naive: datetime | None = None
 
+    rows: list[tuple[datetime, float, str]] = []
     with path.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.reader(handle, delimiter=";")
         next(reader, None)  # header row
@@ -90,24 +100,56 @@ def _parse_csv_file(path: Path) -> ParsedFile:
                 _LOGGER.debug("Skipping unparsable row in %s: %s", path.name, row)
                 continue
 
-            # Disambiguate the repeated local hour on the autumn DST fall-back
-            # night (fold=1 for the second, post-transition occurrence).
-            occurrence = seen_naive.get(naive, 0)
-            seen_naive[naive] = occurrence + 1
-            local_dt = naive.replace(tzinfo=BUDAPEST_TZ, fold=min(occurrence, 1))
-            hour_start_local = local_dt.replace(minute=0, second=0, microsecond=0)
+            rows.append((naive, value, serial))
 
-            hourly[hour_start_local] = hourly.get(hour_start_local, 0.0) + value
-            result.quarter_count += 1
-            result.meter_serial = serial
+    counts: dict[datetime, int] = {}
+    for naive, _value, _serial in rows:
+        counts[naive] = counts.get(naive, 0) + 1
 
-            if last_quarter_naive is None or naive > last_quarter_naive:
-                last_quarter_naive = naive
+    repeated = [ts for ts, count in counts.items() if count > 1]
+    # A single monthly export can contain at most one autumn DST fall-back,
+    # i.e. four repeated quarter-hours, each appearing exactly twice. Anything
+    # beyond that means the file itself carries duplicated rows.
+    dst_fallback = 0 < len(repeated) <= 4 and all(
+        counts[ts] == 2 for ts in repeated
+    )
+    if repeated and not dst_fallback:
+        _LOGGER.warning(
+            "MVM Next: %s ismétlődő időpontokat tartalmaz (%d db); minden "
+            "időponthoz csak az első mérési érték kerül feldolgozásra",
+            path.name,
+            len(repeated),
+        )
 
-    result.hourly = {
-        dt.astimezone(timezone.utc).isoformat(): round(value, 3)
-        for dt, value in hourly.items()
-    }
+    quarters: dict[datetime, float] = {}  # UTC quarter start -> kWh
+    seen_naive: dict[datetime, int] = {}
+    last_quarter_naive: datetime | None = None
+
+    for naive, value, serial in rows:
+        occurrence = seen_naive.get(naive, 0)
+        seen_naive[naive] = occurrence + 1
+
+        if occurrence and not dst_fallback:
+            continue  # duplicated row - keep only the first value for this ts
+        fold = 1 if (occurrence and dst_fallback) else 0
+
+        local_dt = naive.replace(tzinfo=BUDAPEST_TZ, fold=fold)
+        utc_quarter = local_dt.astimezone(timezone.utc).replace(
+            second=0, microsecond=0
+        )
+        quarters[utc_quarter] = value  # assign, never add: one value per slot
+        result.meter_serial = serial
+
+        if last_quarter_naive is None or naive > last_quarter_naive:
+            last_quarter_naive = naive
+
+    hourly: dict[str, float] = {}
+    for utc_quarter, value in quarters.items():
+        hour_start = utc_quarter.replace(minute=0).isoformat()
+        hourly[hour_start] = round(hourly.get(hour_start, 0.0) + value, 3)
+
+    result.hourly = hourly
+    result.quarter_count = len(quarters)
     if last_quarter_naive is not None:
         result.last_quarter_local = last_quarter_naive.isoformat()
 
