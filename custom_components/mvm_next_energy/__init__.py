@@ -13,8 +13,6 @@ from .const import (
     ATTR_FILE,
     ATTR_FILE_PATH,
     ATTR_FILENAME,
-    CONF_IMPORT_DIR,
-    DEFAULT_IMPORT_DIR,
     DOMAIN,
     SERVICE_IMPORT,
     SERVICE_UPLOAD,
@@ -41,8 +39,7 @@ SERVICE_UPLOAD_SCHEMA = vol.Schema(
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up MVM Next Energy Import from a config entry."""
-    import_dir = entry.data.get(CONF_IMPORT_DIR, DEFAULT_IMPORT_DIR)
-    coordinator = MvmImportCoordinator(hass, entry, import_dir)
+    coordinator = MvmImportCoordinator(hass, entry)
     await coordinator.async_load_cache()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator

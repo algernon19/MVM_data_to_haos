@@ -23,7 +23,6 @@ from .const import (
     CONF_PRICE_LOW,
     DEFAULT_ANNUAL_THRESHOLD,
     DEFAULT_COST_ENABLED,
-    DEFAULT_IMPORT_DIR,
     DEFAULT_PRICE_HIGH,
     DEFAULT_PRICE_LOW,
     DOMAIN,
@@ -41,9 +40,10 @@ class MvmNextEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         errors: dict[str, str] = {}
+        default_dir = self.hass.config.path("mvm_next")
 
         if user_input is not None:
-            import_dir = user_input[CONF_IMPORT_DIR].strip() or DEFAULT_IMPORT_DIR
+            import_dir = user_input[CONF_IMPORT_DIR].strip() or default_dir
 
             if not await self.hass.async_add_executor_job(self._ensure_dir, import_dir):
                 errors["base"] = "invalid_dir"
@@ -57,9 +57,7 @@ class MvmNextEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required(
-                    CONF_IMPORT_DIR, default=DEFAULT_IMPORT_DIR
-                ): str,
+                vol.Required(CONF_IMPORT_DIR, default=default_dir): str,
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
@@ -87,7 +85,41 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["upload", "pricing"])
+        return self.async_show_menu(
+            step_id="init", menu_options=["upload", "folder", "pricing"]
+        )
+
+    async def async_step_folder(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        errors: dict[str, str] = {}
+        current = {**self.config_entry.data, **self.config_entry.options}
+        default_dir = current.get(CONF_IMPORT_DIR) or self.hass.config.path("mvm_next")
+
+        if user_input is not None:
+            import_dir = (
+                user_input[CONF_IMPORT_DIR].strip()
+                or self.hass.config.path("mvm_next")
+            )
+            if not await self.hass.async_add_executor_job(
+                MvmNextEnergyConfigFlow._ensure_dir, import_dir
+            ):
+                errors["base"] = "invalid_dir"
+            else:
+                return self.async_create_entry(
+                    title="",
+                    data={
+                        **self.config_entry.options,
+                        CONF_IMPORT_DIR: import_dir,
+                    },
+                )
+
+        schema = vol.Schema(
+            {vol.Required(CONF_IMPORT_DIR, default=default_dir): str}
+        )
+        return self.async_show_form(
+            step_id="folder", data_schema=schema, errors=errors
+        )
 
     async def async_step_pricing(
         self, user_input: dict[str, Any] | None = None

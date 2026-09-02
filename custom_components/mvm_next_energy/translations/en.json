@@ -23,7 +23,15 @@
         "description": "Choose an action.",
         "menu_options": {
           "upload": "Upload and import a CSV file",
+          "folder": "Change the import directory",
           "pricing": "Electricity price / cost calculation"
+        }
+      },
+      "folder": {
+        "title": "Import directory",
+        "description": "The directory the integration scans for *.csv files. On recent HaOS the config folder is reached at `/homeassistant` (not `/config`), e.g. `/homeassistant/mvm_next`. Saving re-runs the import.",
+        "data": {
+          "import_dir": "Import directory"
         }
       },
       "pricing": {
@@ -51,7 +59,8 @@
     },
     "error": {
       "not_loaded": "The integration is not loaded. Restart Home Assistant and try again.",
-      "upload_failed": "Processing the uploaded file failed: {error}"
+      "upload_failed": "Processing the uploaded file failed: {error}",
+      "invalid_dir": "The given directory could not be created or is not accessible."
     }
   },
   "services": {

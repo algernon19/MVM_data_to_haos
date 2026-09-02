@@ -20,6 +20,7 @@ from homeassistant.helpers.storage import Store
 from .const import (
     CONF_ANNUAL_THRESHOLD,
     CONF_COST_ENABLED,
+    CONF_IMPORT_DIR,
     CONF_PRICE_HIGH,
     CONF_PRICE_LOW,
     COST_STATISTIC_ID,
@@ -29,7 +30,6 @@ from .const import (
     CSV_UNIT,
     DEFAULT_ANNUAL_THRESHOLD,
     DEFAULT_COST_ENABLED,
-    DEFAULT_IMPORT_DIR,
     DEFAULT_PRICE_HIGH,
     DEFAULT_PRICE_LOW,
     DOMAIN,
@@ -315,10 +315,9 @@ def _push_cost_statistics(
 class MvmImportCoordinator:
     """Owns the import directory scan, on-disk cache and statistics push."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, import_dir: str) -> None:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
         self.entry = entry
-        self.import_dir = Path(import_dir or DEFAULT_IMPORT_DIR)
         self._store: Store = Store(hass, STORAGE_VERSION, f"{STORAGE_KEY}_{entry.entry_id}")
         self._files: dict[str, ParsedFile] = {}
         self.attributes: dict[str, object] = {}
@@ -336,6 +335,11 @@ class MvmImportCoordinator:
         if key in self.entry.options:
             return self.entry.options[key]
         return self.entry.data.get(key, default)
+
+    @property
+    def import_dir(self) -> Path:
+        configured = self._opt(CONF_IMPORT_DIR, "") or ""
+        return Path(str(configured).strip() or self.hass.config.path("mvm_next"))
 
     @property
     def cost_enabled(self) -> bool:
@@ -467,8 +471,13 @@ class MvmImportCoordinator:
             self._files[path.name] = parsed
 
         if not self._files:
-            _LOGGER.info(
-                "MVM Next: nincs feldolgozható CSV a(z) %s könyvtárban", self.import_dir
+            _LOGGER.warning(
+                "MVM Next: nincs feldolgozható CSV a(z) %s könyvtárban – az import "
+                "nem csinál semmit. Ellenőrizd, hogy a CSV fájlok ebben a "
+                "könyvtárban vannak-e (a HaOS legújabb verzióin a config mappa "
+                "elérése /homeassistant, nem /config). A könyvtár a "
+                "Beállítás → Import könyvtár menüben módosítható.",
+                self.import_dir,
             )
             return
 

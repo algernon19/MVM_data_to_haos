@@ -23,7 +23,15 @@
         "description": "Válassz műveletet.",
         "menu_options": {
           "upload": "CSV fájl feltöltése és importálása",
+          "folder": "Import könyvtár módosítása",
           "pricing": "Áram ára / költségszámítás beállítása"
+        }
+      },
+      "folder": {
+        "title": "Import könyvtár",
+        "description": "Az a könyvtár, ahol az integráció a *.csv fájlokat keresi. A HaOS legújabb verzióin a konfigurációs mappa elérése `/homeassistant` (nem `/config`), tehát pl. `/homeassistant/mvm_next`. Mentés után az import automatikusan újra lefut.",
+        "data": {
+          "import_dir": "Import könyvtár"
         }
       },
       "pricing": {
@@ -51,7 +59,8 @@
     },
     "error": {
       "not_loaded": "Az integráció nincs betöltve. Indítsd újra a Home Assistantot, majd próbáld újra.",
-      "upload_failed": "A feltöltött fájl feldolgozása nem sikerült: {error}"
+      "upload_failed": "A feltöltött fájl feldolgozása nem sikerült: {error}",
+      "invalid_dir": "A megadott könyvtár nem létrehozható vagy nem elérhető."
     }
   },
   "services": {
