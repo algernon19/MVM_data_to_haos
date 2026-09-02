@@ -75,32 +75,68 @@ def _parse_csv_file(path: Path) -> ParsedFile:
     result = ParsedFile(mtime=stat.st_mtime, size=stat.st_size)
 
     rows: list[tuple[datetime, float, str]] = []
+    total = 0
+    rejected: dict[str, int] = {}
+    sample_row: list[str] | None = None
     with path.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.reader(handle, delimiter=";")
         next(reader, None)  # header row
 
         for row in reader:
+            if not any(cell.strip() for cell in row):
+                continue
+            total += 1
+            if sample_row is None:
+                sample_row = row
             if len(row) < 6:
+                rejected["too_few_columns"] = rejected.get("too_few_columns", 0) + 1
                 continue
             serial, idopont, adat_tipus, statusz, ertek, mertekegyseg = (
                 cell.strip() for cell in row[:6]
             )
 
             if adat_tipus != CSV_DIRECTION:
+                rejected["adat_tipus"] = rejected.get("adat_tipus", 0) + 1
                 continue
             if statusz != CSV_STATUS_OK:
+                rejected["statusz"] = rejected.get("statusz", 0) + 1
                 continue
             if mertekegyseg != CSV_UNIT:
+                rejected["mertekegyseg"] = rejected.get("mertekegyseg", 0) + 1
                 continue
 
             try:
                 naive = datetime.strptime(idopont, "%Y. %m. %d. %H:%M")
                 value = float(ertek)
             except ValueError:
+                rejected["unparsable"] = rejected.get("unparsable", 0) + 1
                 _LOGGER.debug("Skipping unparsable row in %s: %s", path.name, row)
                 continue
 
             rows.append((naive, value, serial))
+
+    if not rows:
+        _LOGGER.warning(
+            "MVM Next: %s – egyetlen feldolgozható sor sincs (%d adatsorból). "
+            "Elutasítva: %s. Első sor mintája: %r. Elvárt oszlopok pontosvesszővel "
+            "elválasztva: 'Gyári szám;Időpont;Adatpont típus;Státusz;Érték;"
+            "Mértékegység', ahol Adatpont típus=%r, Státusz=%r, Mértékegység=%r.",
+            path.name,
+            total,
+            rejected or "nincs adatsor",
+            sample_row,
+            CSV_DIRECTION,
+            CSV_STATUS_OK,
+            CSV_UNIT,
+        )
+    else:
+        _LOGGER.debug(
+            "MVM Next: %s – %d/%d sor elfogadva (elutasítva: %s)",
+            path.name,
+            len(rows),
+            total,
+            rejected or "nincs",
+        )
 
     counts: dict[datetime, int] = {}
     for naive, _value, _serial in rows:
@@ -292,7 +328,17 @@ class MvmImportCoordinator:
             force_reparse = path.name
 
         csv_files = await self.hass.async_add_executor_job(
-            lambda: sorted(self.import_dir.glob("*.csv"))
+            lambda: sorted(
+                p
+                for p in self.import_dir.glob("*")
+                if p.is_file() and p.suffix.lower() == ".csv"
+            )
+        )
+        _LOGGER.info(
+            "MVM Next: import indul, könyvtár=%s, talált CSV=%d %s",
+            self.import_dir,
+            len(csv_files),
+            [p.name for p in csv_files],
         )
 
         current_names = {p.name for p in csv_files}
@@ -350,6 +396,22 @@ class MvmImportCoordinator:
         for quarter_iso, value in merged_quarters.items():
             hour_iso = datetime.fromisoformat(quarter_iso).replace(minute=0).isoformat()
             merged_hourly[hour_iso] = round(merged_hourly.get(hour_iso, 0.0) + value, 3)
+
+        if not merged_hourly:
+            _LOGGER.warning(
+                "MVM Next: a(z) %d CSV fájlból egyetlen mérési adat sem jött ki – "
+                "a statisztika nem frissül. Nézd meg a fenti figyelmeztetéseket a "
+                "CSV formátumáról.",
+                len(self._files),
+            )
+            return
+
+        _LOGGER.info(
+            "MVM Next: %d negyedóra, %d óra kerül a statisztikába (utolsó: %s)",
+            len(merged_quarters),
+            len(merged_hourly),
+            latest_quarter,
+        )
 
         # async_add_external_statistics is a @callback: it must run on the
         # event loop, not in an executor thread.
