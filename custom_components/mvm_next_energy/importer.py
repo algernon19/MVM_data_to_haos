@@ -288,6 +288,7 @@ def _push_cost_statistics(
         "name": COST_STATISTIC_NAME,
         "unit_of_measurement": currency,
         "has_sum": True,
+        "unit_class": None,
     }
     if _HAS_MEAN_TYPE:
         metadata["mean_type"] = StatisticMeanType.NONE
