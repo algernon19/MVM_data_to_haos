@@ -67,7 +67,12 @@ Követelmény: Home Assistant **2024.6.0** vagy újabb. Az integráció a `recor
 
 1. Töltsd le az MVM Next ügyfélportálról a negyedórás fogyasztási CSV exportot.
 2. Másold a fájlt az import könyvtárba (pl. `/config/mvm_next/`). Több fájl is lehet egyszerre,
-   akár egymást átfedő időszakokkal – az integráció óránként deduplikálja az adatokat.
+   akár egymást átfedő időszakokkal – az integráció **negyedórás bontásban deduplikál**:
+   egy adott időponthoz mindig pontosan egy mérési érték tartozik, az adatok soha nem
+   adódnak össze. Átfedésnél a **később módosított fájl** értéke érvényes. Ha egy CSV
+   véletlenül duplázott sorokat tartalmaz, a felesleges ismétléseket eldobja (a naplóba
+   figyelmeztetést ír); az őszi óraátállítás szabályosan ismétlődő óráját viszont helyesen
+   megtartja.
 3. Indítsd el az importot az alábbi módok valamelyikével:
    - Nyomd meg az **MVM CSV importálása** gombot (button entitás), vagy
    - hívd meg az `mvm_next_energy.import` szolgáltatást.
