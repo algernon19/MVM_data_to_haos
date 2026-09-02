@@ -199,19 +199,39 @@ def _parse_csv_file(path: Path) -> ParsedFile:
     return result
 
 
-def _push_statistics(hass: HomeAssistant, merged_hourly: dict[str, float]) -> float:
-    """Push the full recomputed hourly series as external long-term statistics.
+def _clear_then_add(
+    hass: HomeAssistant,
+    statistic_id: str,
+    metadata: "StatisticMetaData",
+    statistics: list["StatisticData"],
+) -> None:
+    """Replace a statistic's entire history with the given series.
 
-    Home Assistant upserts external statistics by (statistic_id, start), so
-    calling this again with corrected values simply overwrites the affected
-    hours. The whole series is recomputed from the earliest known hour every
-    time so the cumulative "sum" stays consistent after a correction.
+    The imported CSVs are the single source of truth. Clearing first (the
+    task is queued before the re-add, so the recorder runs them in order)
+    drops any rows outside the current range - e.g. a month that was
+    imported earlier from a CSV that is no longer in the directory - which
+    would otherwise leave the cumulative ``sum`` discontinuous and produce
+    wild spikes on the Energy dashboard.
     """
     # Local import: homeassistant.components.recorder is only importable
     # once the recorder component is loaded.
+    from homeassistant.components.recorder import get_instance
     from homeassistant.components.recorder.statistics import (
         async_add_external_statistics,
     )
+
+    get_instance(hass).async_clear_statistics([statistic_id])
+    async_add_external_statistics(hass, metadata, statistics)
+
+
+def _push_statistics(hass: HomeAssistant, merged_hourly: dict[str, float]) -> float:
+    """Push the full recomputed hourly series as external long-term statistics.
+
+    The whole series is recomputed from the earliest known hour every time and
+    fully replaces the stored statistic, so the cumulative "sum" stays
+    consistent after a correction or a removed month.
+    """
 
     metadata: StatisticMetaData = {
         "statistic_id": STATISTIC_ID,
@@ -239,7 +259,7 @@ def _push_statistics(hass: HomeAssistant, merged_hourly: dict[str, float]) -> fl
             }
         )
 
-    async_add_external_statistics(hass, metadata, statistics)
+    _clear_then_add(hass, STATISTIC_ID, metadata, statistics)
     return round(running_total, 3)
 
 
@@ -278,10 +298,6 @@ def _push_cost_statistics(
     hass: HomeAssistant, currency: str, cost_hourly: dict[str, float]
 ) -> float:
     """Push the derived cost series as a second external statistic (currency)."""
-    from homeassistant.components.recorder.statistics import (
-        async_add_external_statistics,
-    )
-
     metadata: StatisticMetaData = {
         "statistic_id": COST_STATISTIC_ID,
         "source": COST_STATISTIC_ID.split(":", 1)[0],
@@ -308,7 +324,7 @@ def _push_cost_statistics(
             }
         )
 
-    async_add_external_statistics(hass, metadata, statistics)
+    _clear_then_add(hass, COST_STATISTIC_ID, metadata, statistics)
     return round(running_total, 2)
 
 
@@ -449,8 +465,9 @@ class MvmImportCoordinator:
         current_names = {p.name for p in csv_files}
         for stale_name in set(self._files) - current_names:
             _LOGGER.warning(
-                "MVM Next importált fájl eltűnt a könyvtárból: %s (a hozzá tartozó "
-                "korábban importált adatok a statisztikában megmaradnak)",
+                "MVM Next importált fájl eltűnt a könyvtárból: %s – a hozzá tartozó "
+                "adatok kikerülnek a statisztikából (a könyvtárban lévő CSV-k az "
+                "egyetlen forrás). Ha meg akarod tartani, tedd vissza a fájlt.",
                 stale_name,
             )
             self._files.pop(stale_name, None)

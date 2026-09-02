@@ -30,8 +30,11 @@ A statisztika azonosítója (`mvm_next:imported_consumption`) **szándékosan ne
 számához van kötve. Így egy fizikai mérőóracsere nem indít új, a korábbitól elszakadt statisztika-
 sorozatot – a fogyasztási előzmény folytonos marad.
 
-Ha egy korábban importált CSV eltűnik a könyvtárból, a hozzá tartozó, már feltöltött statisztikai
-adatok **megmaradnak** a Home Assistantban; csak figyelmeztetés kerül a naplóba.
+Az import könyvtárban lévő CSV fájlok az **egyetlen forrás**: minden importnál a teljes
+statisztika (fogyasztás és költség) újraszámolódik és lecserélődik a fájlok tartalmára.
+Így egy javított CSV után nincs elcsúszás vagy dupla adat. Ha egy korábban importált CSV-t
+kiveszel a könyvtárból, a hozzá tartozó adatok **kikerülnek** a statisztikából (figyelmeztetés
+a naplóba) – ha meg akarod tartani az előzményt, hagyd a fájlokat a könyvtárban.
 
 ---
 
