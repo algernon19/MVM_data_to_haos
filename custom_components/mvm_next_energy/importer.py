@@ -18,10 +18,20 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
 from .const import (
+    CONF_ANNUAL_THRESHOLD,
+    CONF_COST_ENABLED,
+    CONF_PRICE_HIGH,
+    CONF_PRICE_LOW,
+    COST_STATISTIC_ID,
+    COST_STATISTIC_NAME,
     CSV_DIRECTION,
     CSV_STATUS_OK,
     CSV_UNIT,
+    DEFAULT_ANNUAL_THRESHOLD,
+    DEFAULT_COST_ENABLED,
     DEFAULT_IMPORT_DIR,
+    DEFAULT_PRICE_HIGH,
+    DEFAULT_PRICE_LOW,
     DOMAIN,
     SIGNAL_UPDATE,
     STATISTIC_ID,
@@ -233,6 +243,74 @@ def _push_statistics(hass: HomeAssistant, merged_hourly: dict[str, float]) -> fl
     return round(running_total, 3)
 
 
+def _compute_cost_hourly(
+    merged_hourly: dict[str, float],
+    price_low: float,
+    price_high: float,
+    annual_threshold: float,
+) -> dict[str, float]:
+    """Apply the tiered household tariff to each hour of the series.
+
+    Within a calendar year the consumption up to ``annual_threshold`` kWh is
+    billed at ``price_low``; every kWh above it at ``price_high``. Hours are
+    processed in chronological order so an hour that straddles the threshold is
+    split proportionally. Year boundaries use Europe/Budapest local time.
+    """
+    year_used: dict[int, float] = {}
+    cost_hourly: dict[str, float] = {}
+
+    for start_iso in sorted(merged_hourly):
+        kwh = merged_hourly[start_iso]
+        year = datetime.fromisoformat(start_iso).astimezone(BUDAPEST_TZ).year
+        used = year_used.get(year, 0.0)
+
+        low_part = max(0.0, min(kwh, annual_threshold - used))
+        high_part = kwh - low_part
+        cost_hourly[start_iso] = round(
+            low_part * price_low + high_part * price_high, 4
+        )
+        year_used[year] = used + kwh
+
+    return cost_hourly
+
+
+def _push_cost_statistics(
+    hass: HomeAssistant, currency: str, cost_hourly: dict[str, float]
+) -> float:
+    """Push the derived cost series as a second external statistic (currency)."""
+    from homeassistant.components.recorder.statistics import (
+        async_add_external_statistics,
+    )
+
+    metadata: StatisticMetaData = {
+        "statistic_id": COST_STATISTIC_ID,
+        "source": COST_STATISTIC_ID.split(":", 1)[0],
+        "name": COST_STATISTIC_NAME,
+        "unit_of_measurement": currency,
+        "has_sum": True,
+    }
+    if _HAS_MEAN_TYPE:
+        metadata["mean_type"] = StatisticMeanType.NONE
+    else:  # pragma: no cover - older HA core
+        metadata["has_mean"] = False
+
+    running_total = 0.0
+    statistics: list[StatisticData] = []
+    for start_iso in sorted(cost_hourly):
+        value = cost_hourly[start_iso]
+        running_total += value
+        statistics.append(
+            {
+                "start": datetime.fromisoformat(start_iso),
+                "state": value,
+                "sum": round(running_total, 4),
+            }
+        )
+
+    async_add_external_statistics(hass, metadata, statistics)
+    return round(running_total, 2)
+
+
 class MvmImportCoordinator:
     """Owns the import directory scan, on-disk cache and statistics push."""
 
@@ -251,6 +329,28 @@ class MvmImportCoordinator:
             manufacturer="MVM Next",
             model="CSV Import",
         )
+
+    def _opt(self, key: str, default):
+        """Read a setting from entry.options, falling back to entry.data."""
+        if key in self.entry.options:
+            return self.entry.options[key]
+        return self.entry.data.get(key, default)
+
+    @property
+    def cost_enabled(self) -> bool:
+        return bool(self._opt(CONF_COST_ENABLED, DEFAULT_COST_ENABLED))
+
+    @property
+    def price_low(self) -> float:
+        return float(self._opt(CONF_PRICE_LOW, DEFAULT_PRICE_LOW))
+
+    @property
+    def price_high(self) -> float:
+        return float(self._opt(CONF_PRICE_HIGH, DEFAULT_PRICE_HIGH))
+
+    @property
+    def annual_threshold(self) -> float:
+        return float(self._opt(CONF_ANNUAL_THRESHOLD, DEFAULT_ANNUAL_THRESHOLD))
 
     async def async_load_cache(self) -> None:
         stored = await self._store.async_load()
@@ -417,6 +517,27 @@ class MvmImportCoordinator:
         # event loop, not in an executor thread.
         total_energy = _push_statistics(self.hass, merged_hourly)
 
+        total_cost: float | None = None
+        if self.cost_enabled:
+            currency = self.hass.config.currency or "HUF"
+            cost_hourly = _compute_cost_hourly(
+                merged_hourly,
+                self.price_low,
+                self.price_high,
+                self.annual_threshold,
+            )
+            total_cost = _push_cost_statistics(self.hass, currency, cost_hourly)
+            _LOGGER.info(
+                "MVM Next: költség statisztika frissítve, összesen %.0f %s "
+                "(%.2f / %.3f %s per kWh, éves sáv %.0f kWh)",
+                total_cost,
+                currency,
+                self.price_low,
+                self.price_high,
+                currency,
+                self.annual_threshold,
+            )
+
         now_local = datetime.now(BUDAPEST_TZ)
         self.state_last_quarter = (
             latest_quarter.replace("T", " ") if latest_quarter else None
@@ -426,10 +547,12 @@ class MvmImportCoordinator:
             "imported_quarters": len(merged_quarters),
             "imported_hours": len(merged_hourly),
             "total_energy": total_energy,
+            "total_cost": total_cost,
             "meter_serial": latest_meter_serial,
             "source_file": latest_source_file,
             "import_dir": str(self.import_dir),
             "statistic_id": STATISTIC_ID,
+            "cost_statistic_id": COST_STATISTIC_ID if self.cost_enabled else None,
         }
 
         await self._async_save_cache()

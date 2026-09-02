@@ -16,8 +16,16 @@ from homeassistant.helpers.selector import FileSelector, FileSelectorConfig
 from .const import (
     ATTR_FILE,
     ATTR_FILENAME,
+    CONF_ANNUAL_THRESHOLD,
+    CONF_COST_ENABLED,
     CONF_IMPORT_DIR,
+    CONF_PRICE_HIGH,
+    CONF_PRICE_LOW,
+    DEFAULT_ANNUAL_THRESHOLD,
+    DEFAULT_COST_ENABLED,
     DEFAULT_IMPORT_DIR,
+    DEFAULT_PRICE_HIGH,
+    DEFAULT_PRICE_LOW,
     DOMAIN,
 )
 
@@ -79,7 +87,48 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        return await self.async_step_upload(user_input)
+        return self.async_show_menu(step_id="init", menu_options=["upload", "pricing"])
+
+    async def async_step_pricing(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        current = {**self.config_entry.data, **self.config_entry.options}
+
+        if user_input is not None:
+            new_options = {
+                **self.config_entry.options,
+                CONF_COST_ENABLED: user_input[CONF_COST_ENABLED],
+                CONF_PRICE_LOW: user_input[CONF_PRICE_LOW],
+                CONF_PRICE_HIGH: user_input[CONF_PRICE_HIGH],
+                CONF_ANNUAL_THRESHOLD: user_input[CONF_ANNUAL_THRESHOLD],
+            }
+            # The entry update listener re-pushes both statistics with the new
+            # prices (no CSV re-parse needed).
+            return self.async_create_entry(title="", data=new_options)
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_COST_ENABLED,
+                    default=current.get(CONF_COST_ENABLED, DEFAULT_COST_ENABLED),
+                ): bool,
+                vol.Required(
+                    CONF_PRICE_LOW,
+                    default=current.get(CONF_PRICE_LOW, DEFAULT_PRICE_LOW),
+                ): vol.Coerce(float),
+                vol.Required(
+                    CONF_PRICE_HIGH,
+                    default=current.get(CONF_PRICE_HIGH, DEFAULT_PRICE_HIGH),
+                ): vol.Coerce(float),
+                vol.Required(
+                    CONF_ANNUAL_THRESHOLD,
+                    default=current.get(
+                        CONF_ANNUAL_THRESHOLD, DEFAULT_ANNUAL_THRESHOLD
+                    ),
+                ): vol.Coerce(float),
+            }
+        )
+        return self.async_show_form(step_id="pricing", data_schema=schema)
 
     async def async_step_upload(
         self, user_input: dict[str, Any] | None = None

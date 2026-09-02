@@ -104,6 +104,30 @@ Csak azok a sorok kerülnek importálásra, ahol az adatpont típusa `Vételezet
 
 ---
 
+## Költségszámítás
+
+A fogyasztás mellé az integráció egy második külső statisztikát is feltölt,
+**`mvm_next:imported_cost`** azonosítóval, a Home Assistantban beállított pénznemben
+(állítsd **HUF**-ra: *Beállítások → Rendszer → Általános → Pénznem*).
+
+A számítás a **sávos lakossági villamosenergia-árat** követi:
+
+- az adott **naptári évben** a kedvezményes keretig (alapértelmezetten **2523 kWh**) a
+  kedvezményes egységár (alapértelmezetten **36,39 Ft/kWh** bruttó),
+- a keret felett a piaci egységár (alapértelmezetten **70,104 Ft/kWh** bruttó).
+
+A keret minden naptári év elején nullázódik. A keretet átlépő óra arányosan
+kerül megosztásra a két ár között.
+
+A három érték és a be-/kikapcsolás a **Beállítás (Configure) → Áram ára / költségszámítás
+beállítása** menüben módosítható; mentés után minden korábbi import automatikusan
+újraszámolódik (a CSV-ket nem kell újra beolvasni).
+
+Az Energia irányítópulton a „Hálózati fogyasztás" forrásnál válaszd a **Teljes költségeket
+követő entitás használata** opciót, és add meg az `mvm_next:imported_cost` statisztikát.
+
+---
+
 ## Szolgáltatás: `mvm_next_energy.import`
 
 Beolvassa az import könyvtárban található CSV fájlokat, és frissíti a long-term statisztikát.
@@ -149,7 +173,7 @@ Az integráció egy „MVM Next Energy Import” eszközt hoz létre a következ
 
 | Entitás | Típus | Leírás |
 |---------|-------|--------|
-| MVM Next Import | `sensor` | Állapota a legutolsó importált negyedóra (helyi idő). Attribútumai: `last_import`, `imported_quarters`, `imported_hours`, `total_energy`, `meter_serial`, `source_file`, `import_dir`, `statistic_id`. |
+| MVM Next Import | `sensor` | Állapota a legutolsó importált negyedóra (helyi idő). Attribútumai: `last_import`, `imported_quarters`, `imported_hours`, `total_energy`, `total_cost`, `meter_serial`, `source_file`, `import_dir`, `statistic_id`, `cost_statistic_id`. |
 | MVM CSV importálása | `button` | Megnyomásra átvizsgálja az import könyvtárat és feltölti a frissített statisztikát. |
 
 A feltöltött long-term statisztika azonosítója: **`mvm_next:imported_consumption`**

@@ -18,6 +18,24 @@
   },
   "options": {
     "step": {
+      "init": {
+        "title": "MVM Next Energy Import",
+        "description": "Choose an action.",
+        "menu_options": {
+          "upload": "Upload and import a CSV file",
+          "pricing": "Electricity price / cost calculation"
+        }
+      },
+      "pricing": {
+        "title": "Cost calculation",
+        "description": "Alongside consumption an `mvm_next:imported_cost` statistic is pushed in the currency configured in Home Assistant (set it to HUF). Tiered household tariff: the reduced unit price up to the yearly allowance, the market price above it. The allowance resets every calendar year. Saving re-computes every past import.",
+        "data": {
+          "cost_enabled": "Push the cost statistic",
+          "price_low": "Reduced price (HUF/kWh, gross)",
+          "price_high": "Market price above the allowance (HUF/kWh, gross)",
+          "annual_threshold_kwh": "Yearly reduced-price allowance (kWh)"
+        }
+      },
       "upload": {
         "title": "Upload MVM Next CSV",
         "description": "Pick the downloaded MVM Next CSV export file. After upload it is stored in the import directory and the statistic is refreshed immediately.",

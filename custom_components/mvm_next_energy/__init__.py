@@ -47,6 +47,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async def _handle_import(call: ServiceCall) -> None:
@@ -67,6 +69,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     return True
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Recompute statistics when the pricing options change."""
+    coordinator: MvmImportCoordinator | None = hass.data.get(DOMAIN, {}).get(
+        entry.entry_id
+    )
+    if coordinator is not None:
+        await coordinator.async_import(None)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

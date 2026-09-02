@@ -18,6 +18,24 @@
   },
   "options": {
     "step": {
+      "init": {
+        "title": "MVM Next Energy Import",
+        "description": "Válassz műveletet.",
+        "menu_options": {
+          "upload": "CSV fájl feltöltése és importálása",
+          "pricing": "Áram ára / költségszámítás beállítása"
+        }
+      },
+      "pricing": {
+        "title": "Költségszámítás",
+        "description": "A fogyasztás mellé a rendszer feltölt egy `mvm_next:imported_cost` költség-statisztikát is (a Home Assistantban beállított pénznemben – állítsd HUF-ra). Sávos lakossági ár: az éves keretig a kedvezményes, felette a piaci egységár. Az éves keret naptári évenként nullázódik. Mentés után minden korábbi import újraszámolódik.",
+        "data": {
+          "cost_enabled": "Költség-statisztika feltöltése",
+          "price_low": "Kedvezményes ár (Ft/kWh, bruttó)",
+          "price_high": "Piaci ár a keret felett (Ft/kWh, bruttó)",
+          "annual_threshold_kwh": "Éves kedvezményes keret (kWh)"
+        }
+      },
       "upload": {
         "title": "MVM Next CSV feltöltése",
         "description": "Válaszd ki a letöltött MVM Next CSV export fájlt. A feltöltés után a fájl bekerül az import könyvtárba, és a statisztika azonnal frissül.",
