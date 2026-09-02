@@ -16,6 +16,22 @@
       "already_configured": "The integration is already configured."
     }
   },
+  "options": {
+    "step": {
+      "upload": {
+        "title": "Upload MVM Next CSV",
+        "description": "Pick the downloaded MVM Next CSV export file. After upload it is stored in the import directory and the statistic is refreshed immediately.",
+        "data": {
+          "file": "CSV file",
+          "filename": "Saved file name (optional)"
+        }
+      }
+    },
+    "error": {
+      "not_loaded": "The integration is not loaded. Restart Home Assistant and try again.",
+      "upload_failed": "Processing the uploaded file failed. Check that it is a genuine MVM Next CSV export."
+    }
+  },
   "services": {
     "import": {
       "name": "Import MVM CSV",

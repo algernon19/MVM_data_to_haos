@@ -16,6 +16,22 @@
       "already_configured": "Az integráció már be van állítva."
     }
   },
+  "options": {
+    "step": {
+      "upload": {
+        "title": "MVM Next CSV feltöltése",
+        "description": "Válaszd ki a letöltött MVM Next CSV export fájlt. A feltöltés után a fájl bekerül az import könyvtárba, és a statisztika azonnal frissül.",
+        "data": {
+          "file": "CSV fájl",
+          "filename": "Mentett fájlnév (opcionális)"
+        }
+      }
+    },
+    "error": {
+      "not_loaded": "Az integráció nincs betöltve. Indítsd újra a Home Assistantot, majd próbáld újra.",
+      "upload_failed": "A feltöltött fájl feldolgozása nem sikerült. Ellenőrizd, hogy valódi MVM Next CSV export-e."
+    }
+  },
   "services": {
     "import": {
       "name": "MVM CSV importálása",
