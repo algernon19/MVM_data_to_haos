@@ -3,7 +3,7 @@
   "name": "MVM Next Energy Import",
   "codeowners": ["@algernon19"],
   "config_flow": true,
-  "dependencies": ["recorder"],
+  "dependencies": ["recorder", "file_upload", "http"],
   "documentation": "https://github.com/algernon19/mvm-next-energy-import",
   "integration_type": "service",
   "iot_class": "local_polling",

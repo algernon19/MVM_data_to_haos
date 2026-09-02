@@ -26,6 +26,20 @@
           "description": "Opcionális: egyetlen CSV fájl kényszerített újrafeldolgozása."
         }
       }
+    },
+    "upload": {
+      "name": "MVM CSV feltöltése",
+      "description": "CSV fájl feltöltése a böngészőből az import könyvtárba, majd azonnali feldolgozása.",
+      "fields": {
+        "file": {
+          "name": "CSV fájl",
+          "description": "A feltöltendő MVM Next CSV export fájl."
+        },
+        "filename": {
+          "name": "Fájlnév",
+          "description": "Opcionális: a könyvtárba mentett fájl neve. Ha üresen marad, a feltöltött fájl eredeti neve marad meg."
+        }
+      }
     }
   }
 }

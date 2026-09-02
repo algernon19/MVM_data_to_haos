@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -194,6 +195,30 @@ class MvmImportCoordinator:
                 "state_last_quarter": self.state_last_quarter,
             }
         )
+
+    async def async_upload(self, file_id: str, filename: str | None) -> None:
+        """Store a browser-uploaded CSV in the import directory and import it.
+
+        file_id is the token produced by the frontend file selector; Home
+        Assistant keeps the uploaded payload in a temporary location until
+        process_uploaded_file() hands us its path (and cleans it up on exit).
+        """
+        from homeassistant.components.file_upload import process_uploaded_file
+
+        def _store() -> str:
+            with process_uploaded_file(self.hass, file_id) as src:
+                target_name = (filename or src.name).strip() or src.name
+                target_name = Path(target_name).name
+                if not target_name.lower().endswith(".csv"):
+                    target_name += ".csv"
+                self.import_dir.mkdir(parents=True, exist_ok=True)
+                dest = self.import_dir / target_name
+                shutil.copyfile(src, dest)
+            return target_name
+
+        stored_name = await self.hass.async_add_executor_job(_store)
+        _LOGGER.info("MVM Next: feltöltött fájl mentve: %s", stored_name)
+        await self.async_import(stored_name)
 
     async def async_import(self, file_path: str | None) -> None:
         """Scan the import directory and (re)push updated statistics.

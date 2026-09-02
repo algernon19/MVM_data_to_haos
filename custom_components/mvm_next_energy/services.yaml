@@ -17,3 +17,27 @@ import:
       example: "/config/mvm_next/meresi_adatok_augusztus.csv"
       selector:
         text:
+
+upload:
+  name: MVM CSV feltöltése
+  description: >-
+    CSV fájl feltöltése a böngészőből az import könyvtárba, majd azonnali
+    feldolgozása. A fájl bekerül a beállított import könyvtárba, és a
+    mvm_next:imported_consumption long-term statisztika frissül.
+  fields:
+    file:
+      name: CSV fájl
+      description: A feltöltendő MVM Next CSV export fájl.
+      required: true
+      selector:
+        file:
+          accept: ".csv,text/csv"
+    filename:
+      name: Fájlnév
+      description: >-
+        Opcionális: a könyvtárba mentett fájl neve. Ha üresen marad, a
+        feltöltött fájl eredeti neve marad meg.
+      required: false
+      example: "meresi_adatok_augusztus.csv"
+      selector:
+        text:

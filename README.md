@@ -71,6 +71,11 @@ Követelmény: Home Assistant **2024.6.0** vagy újabb. Az integráció a `recor
 3. Indítsd el az importot az alábbi módok valamelyikével:
    - Nyomd meg az **MVM CSV importálása** gombot (button entitás), vagy
    - hívd meg az `mvm_next_energy.import` szolgáltatást.
+
+   Ha nincs kényelmes fájlrendszer-hozzáférésed a Home Assistant géphez, a CSV-t
+   közvetlenül a böngészőből is feltöltheted: **Fejlesztői eszközök → Műveletek →
+   `MVM Next Energy Import: MVM CSV feltöltése`**. A feltöltött fájl bekerül az
+   import könyvtárba, és rögtön feldolgozásra kerül.
 4. Nyisd meg az **Energia** irányítópultot, és add hozzá az
    `mvm_next:imported_consumption` statisztikát a „Hálózati fogyasztás” forráshoz.
 
@@ -102,6 +107,27 @@ Példa:
 service: mvm_next_energy.import
 data:
   file_path: /config/mvm_next/meresi_adatok_augusztus.csv
+```
+
+---
+
+## Szolgáltatás: `mvm_next_energy.upload`
+
+CSV fájl feltöltése közvetlenül a böngészőből (a Home Assistant fájlrendszeréhez való
+hozzáférés nélkül). A fájl bekerül a beállított import könyvtárba, majd azonnal
+feldolgozásra kerül – ugyanaz történik, mintha kézzel másoltad volna be, és megnyomtad
+volna az import gombot.
+
+| Mező | Kötelező | Leírás |
+|------|----------|--------|
+| `file` | igen | A feltöltendő CSV fájl (a művelet-szerkesztő fájlválasztójával). |
+| `filename` | nem | A könyvtárba mentett fájl neve. Üresen hagyva a feltöltött fájl eredeti neve marad meg. |
+
+```yaml
+service: mvm_next_energy.upload
+data:
+  file: <a fájlválasztó által adott azonosító>
+  filename: meresi_adatok_augusztus.csv
 ```
 
 ---
