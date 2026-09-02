@@ -527,6 +527,7 @@ class MvmImportCoordinator:
             self.price_high,
             self.annual_threshold,
         )
+        cost_error: str | None = None
         if self.cost_enabled:
             currency = self.hass.config.currency or "HUF"
             cost_hourly = _compute_cost_hourly(
@@ -537,7 +538,8 @@ class MvmImportCoordinator:
             )
             try:
                 total_cost = _push_cost_statistics(self.hass, currency, cost_hourly)
-            except Exception:  # noqa: BLE001 - keep the consumption import intact
+            except Exception as err:  # noqa: BLE001 - keep the consumption import intact
+                cost_error = f"{type(err).__name__}: {err}"
                 _LOGGER.exception(
                     "MVM Next: a(z) %s költség-statisztika feltöltése nem sikerült",
                     COST_STATISTIC_ID,
@@ -564,6 +566,9 @@ class MvmImportCoordinator:
             "imported_hours": len(merged_hourly),
             "total_energy": total_energy,
             "total_cost": total_cost,
+            "cost_enabled": self.cost_enabled,
+            "cost_currency": self.hass.config.currency,
+            "cost_error": cost_error,
             "meter_serial": latest_meter_serial,
             "source_file": latest_source_file,
             "import_dir": str(self.import_dir),
