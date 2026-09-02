@@ -51,8 +51,7 @@ class ParsedFile:
 
     mtime: float
     size: int
-    hourly: dict[str, float] = field(default_factory=dict)  # UTC isoformat -> kWh
-    quarter_count: int = 0
+    quarters: dict[str, float] = field(default_factory=dict)  # UTC quarter iso -> kWh
     meter_serial: str | None = None
     last_quarter_local: str | None = None  # naive local isoformat, e.g. 2026-08-31T23:45:00
 
@@ -143,13 +142,10 @@ def _parse_csv_file(path: Path) -> ParsedFile:
         if last_quarter_naive is None or naive > last_quarter_naive:
             last_quarter_naive = naive
 
-    hourly: dict[str, float] = {}
-    for utc_quarter, value in quarters.items():
-        hour_start = utc_quarter.replace(minute=0).isoformat()
-        hourly[hour_start] = round(hourly.get(hour_start, 0.0) + value, 3)
-
-    result.hourly = hourly
-    result.quarter_count = len(quarters)
+    result.quarters = {
+        utc_quarter.isoformat(): round(value, 3)
+        for utc_quarter, value in quarters.items()
+    }
     if last_quarter_naive is not None:
         result.last_quarter_local = last_quarter_naive.isoformat()
 
@@ -223,9 +219,13 @@ class MvmImportCoordinator:
         stored = await self._store.async_load()
         if not stored:
             return
-        self._files = {
-            name: ParsedFile(**data) for name, data in stored.get("files", {}).items()
-        }
+        for name, data in stored.get("files", {}).items():
+            try:
+                self._files[name] = ParsedFile(**data)
+            except TypeError:
+                # Cache written by an older version - drop it so the file is
+                # re-parsed from disk on the next import.
+                _LOGGER.debug("MVM Next: elavult gyorsítótár-bejegyzés eldobva: %s", name)
         self.attributes = stored.get("attributes", {})
         self.state_last_quarter = stored.get("state_last_quarter")
 
@@ -324,22 +324,31 @@ class MvmImportCoordinator:
             )
             return
 
-        merged_hourly: dict[str, float] = {}
+        merged_quarters: dict[str, float] = {}
         latest_quarter: str | None = None
         latest_source_file: str | None = None
         latest_meter_serial: str | None = None
-        imported_quarters = 0
 
-        for name in sorted(self._files):
-            parsed = self._files[name]
-            merged_hourly.update(parsed.hourly)
-            imported_quarters += parsed.quarter_count
+        # Oldest file first, newest last, so that when two exports cover the
+        # same quarter-hour the value from the more recently written file wins.
+        # dict assignment (not addition) means an overlapping period is never
+        # counted twice - one timestamp keeps exactly one value.
+        for name, parsed in sorted(
+            self._files.items(), key=lambda kv: (kv[1].mtime, kv[0])
+        ):
+            merged_quarters.update(parsed.quarters)
             if parsed.last_quarter_local and (
                 latest_quarter is None or parsed.last_quarter_local > latest_quarter
             ):
                 latest_quarter = parsed.last_quarter_local
                 latest_source_file = name
                 latest_meter_serial = parsed.meter_serial
+
+        # Sum the four quarter-hours of each hour - the only place values add up.
+        merged_hourly: dict[str, float] = {}
+        for quarter_iso, value in merged_quarters.items():
+            hour_iso = datetime.fromisoformat(quarter_iso).replace(minute=0).isoformat()
+            merged_hourly[hour_iso] = round(merged_hourly.get(hour_iso, 0.0) + value, 3)
 
         # async_add_external_statistics is a @callback: it must run on the
         # event loop, not in an executor thread.
@@ -351,7 +360,7 @@ class MvmImportCoordinator:
         )
         self.attributes = {
             "last_import": now_local.strftime("%Y-%m-%d %H:%M"),
-            "imported_quarters": imported_quarters,
+            "imported_quarters": len(merged_quarters),
             "imported_hours": len(merged_hourly),
             "total_energy": total_energy,
             "meter_serial": latest_meter_serial,
