@@ -67,8 +67,9 @@ def _parse_csv_file(path: Path) -> ParsedFile:
       the autumn DST fall-back night (at most four quarter-hours, kept as the
       post-transition ``fold=1`` occurrence) or an accidentally duplicated /
       concatenated row (every extra occurrence is dropped, with a warning).
-    * The four quarter-hours of an hour are summed into that hour – that is the
-      only place values are added together.
+
+    The result is a ``{UTC quarter-hour ISO: kWh}`` map with one value per
+    slot; hourly aggregation and cross-file merging happen in the coordinator.
     """
     stat = path.stat()
     result = ParsedFile(mtime=stat.st_mtime, size=stat.st_size)
