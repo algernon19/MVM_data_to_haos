@@ -519,6 +519,14 @@ class MvmImportCoordinator:
         total_energy = _push_statistics(self.hass, merged_hourly)
 
         total_cost: float | None = None
+        _LOGGER.info(
+            "MVM Next: költségszámítás %s (pénznem=%s, árak=%.2f / %.3f, keret=%.0f kWh)",
+            "BE" if self.cost_enabled else "KI",
+            self.hass.config.currency,
+            self.price_low,
+            self.price_high,
+            self.annual_threshold,
+        )
         if self.cost_enabled:
             currency = self.hass.config.currency or "HUF"
             cost_hourly = _compute_cost_hourly(
@@ -527,17 +535,24 @@ class MvmImportCoordinator:
                 self.price_high,
                 self.annual_threshold,
             )
-            total_cost = _push_cost_statistics(self.hass, currency, cost_hourly)
-            _LOGGER.info(
-                "MVM Next: költség statisztika frissítve, összesen %.0f %s "
-                "(%.2f / %.3f %s per kWh, éves sáv %.0f kWh)",
-                total_cost,
-                currency,
-                self.price_low,
-                self.price_high,
-                currency,
-                self.annual_threshold,
-            )
+            try:
+                total_cost = _push_cost_statistics(self.hass, currency, cost_hourly)
+            except Exception:  # noqa: BLE001 - keep the consumption import intact
+                _LOGGER.exception(
+                    "MVM Next: a(z) %s költség-statisztika feltöltése nem sikerült",
+                    COST_STATISTIC_ID,
+                )
+            else:
+                _LOGGER.info(
+                    "MVM Next: költség statisztika frissítve, összesen %.0f %s "
+                    "(%.2f / %.3f %s per kWh, éves sáv %.0f kWh)",
+                    total_cost,
+                    currency,
+                    self.price_low,
+                    self.price_high,
+                    currency,
+                    self.annual_threshold,
+                )
 
         now_local = datetime.now(BUDAPEST_TZ)
         self.state_last_quarter = (
