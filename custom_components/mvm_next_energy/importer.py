@@ -60,7 +60,11 @@ from .const import (
     STORAGE_VERSION,
     TIME_ZONE,
 )
-from .dynamic import DTariffConfig, async_d_gross_prices
+from .dynamic import (
+    DTariffConfig,
+    async_current_d_price,
+    async_d_gross_prices,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -560,6 +564,7 @@ class MvmImportCoordinator:
         self._files: dict[str, ParsedFile] = {}
         self.attributes: dict[str, object] = {}
         self.year_summary: dict[str, object] = {}
+        self.current_d: dict[str, float] = {}
         self.state_last_quarter: str | None = None
 
         self.device_info = DeviceInfo(
@@ -649,6 +654,26 @@ class MvmImportCoordinator:
                 "state_last_quarter": self.state_last_quarter,
             }
         )
+
+    async def async_refresh_current(self) -> None:
+        """Update the 'current D price' sensors (called on a timer)."""
+        if not self.d_enabled:
+            if self.current_d:
+                self.current_d = {}
+                async_dispatcher_send(self.hass, SIGNAL_UPDATE)
+            return
+        try:
+            data = await async_current_d_price(
+                self.hass,
+                f"{D_PRICE_STORAGE_KEY}_{self.entry.entry_id}",
+                self.d_config,
+            )
+        except Exception:  # noqa: BLE001 - a timer callback must not raise
+            _LOGGER.debug("MVM Next: aktuális D ár lekérés hiba", exc_info=True)
+            return
+        if data:
+            self.current_d = data
+            async_dispatcher_send(self.hass, SIGNAL_UPDATE)
 
     async def async_upload(self, file_id: str) -> None:
         """Store a browser-uploaded CSV in the import directory and import it.

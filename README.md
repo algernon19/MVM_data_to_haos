@@ -220,6 +220,8 @@ Az integráció egy „MVM Next Energy Import” eszközt hoz létre a következ
 | MVM Next Becsült sávváltás | `sensor` | Az eddigi éves átlagfogyasztásból becsült dátum, amikor piaci árra vált (vagy „átlépve" / „2026. után"). |
 | MVM Next D tarifa idei költség | `sensor` | Az idei fogyasztás költsége a D (dinamikus) tarifával (ha be van kapcsolva). |
 | MVM Next A1 és D különbség | `sensor` | D − A1 idei költség (pozitív = a D drágább). Attribútumban havi bontású összehasonlítás. |
+| MVM Next D tarifa aktuális ár | `sensor` | A D tarifa becsült **aktuális** bruttó egységára (Ft/kWh), 15 percenként frissül. |
+| MVM Next D tarifa HUPX nyers ár | `sensor` | Az aktuális HUPX tőzsdei ár Ft/kWh-ra átszámolva (díjak nélkül). |
 | MVM CSV importálása | `button` | Megnyomásra átvizsgálja az import könyvtárat és feltölti a frissített statisztikát. |
 
 A feltöltött long-term statisztika azonosítója: **`mvm_next:imported_consumption`**

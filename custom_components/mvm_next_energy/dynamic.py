@@ -204,6 +204,41 @@ class DMarketStore:
         )
 
 
+async def async_current_d_price(
+    hass: HomeAssistant, store_key: str, config: DTariffConfig
+) -> dict[str, float] | None:
+    """The dynamic tariff price for the current 15-minute slot, right now."""
+    store = DMarketStore(hass, store_key)
+    now = datetime.now(timezone.utc)
+    slot = now.replace(
+        minute=(now.minute // 15) * 15, second=0, microsecond=0
+    )
+    prices = await store.async_prices_for(
+        [slot - timedelta(minutes=15), slot, slot + timedelta(minutes=15)]
+    )
+    eur_mwh = prices.get(slot.isoformat()) or prices.get(
+        (slot - timedelta(minutes=15)).isoformat()
+    )
+    if eur_mwh is None:
+        return None
+
+    if config.eur_huf > 0:
+        rate: float | None = config.eur_huf
+    else:
+        rates = await store.async_rates_for([slot.astimezone(_BUDAPEST).date()])
+        rate = next(iter(rates.values()), None)
+    if rate is None:
+        return None
+
+    return {
+        "hupx_eur_mwh": round(eur_mwh, 2),
+        "eur_huf": round(rate, 2),
+        "raw_huf_kwh": round(eur_mwh * rate / 1000.0, 2),
+        "gross_huf_kwh": round(config.gross_price(eur_mwh, rate), 2),
+        "slot_start": slot.isoformat(),
+    }
+
+
 async def async_d_gross_prices(
     hass: HomeAssistant,
     store_key: str,

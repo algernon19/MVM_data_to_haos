@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
     ATTR_FILE,
@@ -44,7 +46,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
+    async def _refresh_current(_now=None) -> None:
+        await coordinator.async_refresh_current()
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    hass.async_create_task(_refresh_current())
+    entry.async_on_unload(
+        async_track_time_interval(hass, _refresh_current, timedelta(minutes=15))
+    )
 
     async def _handle_import(call: ServiceCall) -> None:
         await coordinator.async_import(call.data.get(ATTR_FILE_PATH))

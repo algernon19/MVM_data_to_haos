@@ -15,13 +15,14 @@ from .importer import MvmImportCoordinator
 
 @dataclass(frozen=True, kw_only=True)
 class MvmSummarySensor:
-    """Description of a sensor backed by coordinator.year_summary."""
+    """Description of a sensor backed by coordinator.year_summary / current_d."""
 
     key: str
     name: str
     icon: str
     unit: str | None = None
     currency_unit: bool = False
+    source: str = "year"  # "year" -> year_summary, "current" -> current_d
 
 
 SUMMARY_SENSORS: tuple[MvmSummarySensor, ...] = (
@@ -76,6 +77,20 @@ SUMMARY_SENSORS: tuple[MvmSummarySensor, ...] = (
         name="MVM Next A1 és D különbség",
         icon="mdi:scale-balance",
         currency_unit=True,
+    ),
+    MvmSummarySensor(
+        key="gross_huf_kwh",
+        name="MVM Next D tarifa aktuális ár",
+        icon="mdi:cash-fast",
+        unit="HUF/kWh",
+        source="current",
+    ),
+    MvmSummarySensor(
+        key="raw_huf_kwh",
+        name="MVM Next D tarifa HUPX nyers ár",
+        icon="mdi:chart-line",
+        unit="HUF/kWh",
+        source="current",
     ),
 )
 
@@ -144,6 +159,14 @@ class MvmNextSummarySensor(_MvmBaseSensor):
         self._attr_name = description.name
         self._attr_icon = description.icon
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+        if description.source == "current":
+            self._attr_unique_id = f"{entry.entry_id}_current_{description.key}"
+
+    @property
+    def _data(self) -> dict:
+        if self._description.source == "current":
+            return self._coordinator.current_d
+        return self._coordinator.year_summary
 
     @property
     def native_unit_of_measurement(self) -> str | None:
@@ -153,7 +176,7 @@ class MvmNextSummarySensor(_MvmBaseSensor):
 
     @property
     def native_value(self) -> object:
-        value = self._coordinator.year_summary.get(self._description.key)
+        value = self._data.get(self._description.key)
         if self._description.key == "price_tier":
             return {"kedvezmenyes": "kedvezményes", "piaci": "piaci"}.get(
                 value, value
@@ -168,6 +191,13 @@ class MvmNextSummarySensor(_MvmBaseSensor):
     @property
     def extra_state_attributes(self) -> dict[str, object]:
         summary = self._coordinator.year_summary
+        if self._description.source == "current":
+            data = self._coordinator.current_d
+            return {
+                "slot_start": data.get("slot_start"),
+                "hupx_eur_mwh": data.get("hupx_eur_mwh"),
+                "eur_huf": data.get("eur_huf"),
+            }
         attrs: dict[str, object] = {
             "year": summary.get("year"),
             "data_through": summary.get("data_through"),
