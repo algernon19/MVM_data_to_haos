@@ -46,10 +46,9 @@
       },
       "upload": {
         "title": "MVM Next CSV feltöltése",
-        "description": "Válaszd ki a letöltött MVM Next CSV export fájlt. A feltöltés után a fájl bekerül az import könyvtárba, és a statisztika azonnal frissül.",
+        "description": "Válaszd ki a letöltött MVM Next CSV export fájlt. A fájl a benne lévő időszak szerinti néven mentődik (pl. `mvm_2026-08.csv`), így a korábbi exportokat nem írja felül, és a statisztika azonnal frissül.",
         "data": {
-          "file": "CSV fájl",
-          "filename": "Mentett fájlnév (opcionális)"
+          "file": "CSV fájl"
         }
       },
       "done": {
@@ -81,10 +80,6 @@
         "file": {
           "name": "CSV fájl",
           "description": "A feltöltendő MVM Next CSV export fájl."
-        },
-        "filename": {
-          "name": "Fájlnév",
-          "description": "Opcionális: a könyvtárba mentett fájl neve. Ha üresen marad, a feltöltött fájl eredeti neve marad meg."
         }
       }
     }

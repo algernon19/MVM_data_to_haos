@@ -62,15 +62,24 @@ Követelmény: Home Assistant **2024.6.0** vagy újabb. Az integráció a `recor
 1. **Beállítások → Eszközök és szolgáltatások → Integráció hozzáadása**.
 2. Keresd meg az „MVM Next Energy Import” integrációt.
 3. Add meg az **import könyvtárat**, ahová a letöltött CSV fájlokat fogod másolni
-   (alapértelmezett: `/config/mvm_next`). A könyvtár létrejön, ha még nem létezik.
+   (alapértelmezett: a konfigurációs mappa `mvm_next` almappája, pl. `/homeassistant/mvm_next`).
+   A könyvtár létrejön, ha még nem létezik, és később a **Beállítás** menüből módosítható.
 
 ---
 
 ## Használat
 
 1. Töltsd le az MVM Next ügyfélportálról a negyedórás fogyasztási CSV exportot.
-2. Másold a fájlt az import könyvtárba (pl. `/config/mvm_next/`). Több fájl is lehet egyszerre,
-   akár egymást átfedő időszakokkal – az integráció **negyedórás bontásban deduplikál**:
+2. Másold a fájlt az import könyvtárba (pl. `/homeassistant/mvm_next/`). Több fájl is lehet
+   egyszerre, akár egymást átfedő időszakokkal.
+
+   > **Fájlnevek:** az MVM Next minden exportot ugyanazzal a névvel ad
+   > (`meresi_adatok_<gyáriszám>.csv`), ezért egy új hónap felülírná az előzőt. Az integráció
+   > ezért importáláskor **automatikusan a benne lévő időszak szerint nevezi át** a fájlokat
+   > (`mvm_2026-08.csv`, `mvm_2026-05-01_2026-07-31.csv` stb.), így minden export külön fájl
+   > marad. A böngészőből feltöltött fájlokra ez ugyanígy vonatkozik.
+
+   Az integráció **negyedórás bontásban deduplikál**:
    egy adott időponthoz mindig pontosan egy mérési érték tartozik, az adatok soha nem
    adódnak össze. Átfedésnél a **később módosított fájl** értéke érvényes. Ha egy CSV
    véletlenül duplázott sorokat tartalmaz, a felesleges ismétléseket eldobja (a naplóba
@@ -144,7 +153,7 @@ Példa:
 ```yaml
 service: mvm_next_energy.import
 data:
-  file_path: /config/mvm_next/meresi_adatok_augusztus.csv
+  file_path: /homeassistant/mvm_next/mvm_2026-08.csv
 ```
 
 ---
@@ -152,20 +161,17 @@ data:
 ## Szolgáltatás: `mvm_next_energy.upload`
 
 CSV fájl feltöltése közvetlenül a böngészőből (a Home Assistant fájlrendszeréhez való
-hozzáférés nélkül). A fájl bekerül a beállított import könyvtárba, majd azonnal
-feldolgozásra kerül – ugyanaz történik, mintha kézzel másoltad volna be, és megnyomtad
-volna az import gombot.
+hozzáférés nélkül). A fájl a benne lévő időszak szerinti néven kerül a beállított import
+könyvtárba (pl. `mvm_2026-08.csv`), majd azonnal feldolgozásra kerül.
 
 | Mező | Kötelező | Leírás |
 |------|----------|--------|
 | `file` | igen | A feltöltendő CSV fájl (a művelet-szerkesztő fájlválasztójával). |
-| `filename` | nem | A könyvtárba mentett fájl neve. Üresen hagyva a feltöltött fájl eredeti neve marad meg. |
 
 ```yaml
 service: mvm_next_energy.upload
 data:
   file: <a fájlválasztó által adott azonosító>
-  filename: meresi_adatok_augusztus.csv
 ```
 
 ---

@@ -1,11 +1,13 @@
 """CSV parsing and long-term statistics import for MVM Next Energy Import."""
 from __future__ import annotations
 
+import calendar
 import csv
 import logging
+import re
 import shutil
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -64,6 +66,55 @@ class ParsedFile:
     quarters: dict[str, float] = field(default_factory=dict)  # UTC quarter iso -> kWh
     meter_serial: str | None = None
     last_quarter_local: str | None = None  # naive local isoformat, e.g. 2026-08-31T23:45:00
+
+
+_CANON_RE = re.compile(r"^mvm_\d{4}-\d{2}(-\d{2}(_\d{4}-\d{2}-\d{2})?)?\.csv$")
+
+
+def _csv_date_span(path: Path) -> tuple[date, date] | None:
+    """Return the (first, last) calendar date covered by a CSV (blocking)."""
+    first: date | None = None
+    last: date | None = None
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        reader = csv.reader(handle, delimiter=";")
+        next(reader, None)  # header
+        for row in reader:
+            if len(row) < 2:
+                continue
+            try:
+                day = datetime.strptime(row[1].strip(), "%Y. %m. %d. %H:%M").date()
+            except ValueError:
+                continue
+            if first is None or day < first:
+                first = day
+            if last is None or day > last:
+                last = day
+    if first is None or last is None:
+        return None
+    return first, last
+
+
+def _canonical_name(path: Path) -> str | None:
+    """Deterministic file name for the period a CSV covers.
+
+    MVM Next always exports with the same file name (``meresi_adatok_<serial>``),
+    so importing a new month would overwrite the previous export on disk. Naming
+    each file after the period it contains keeps every export as a separate file.
+    """
+    span = _csv_date_span(path)
+    if span is None:
+        return None
+    start, end = span
+    if start == end:
+        return f"mvm_{start.isoformat()}.csv"
+    if (
+        start.year == end.year
+        and start.month == end.month
+        and start.day == 1
+        and end.day == calendar.monthrange(end.year, end.month)[1]
+    ):
+        return f"mvm_{start.strftime('%Y-%m')}.csv"
+    return f"mvm_{start.isoformat()}_{end.isoformat()}.csv"
 
 
 def _parse_csv_file(path: Path) -> ParsedFile:
@@ -396,32 +447,26 @@ class MvmImportCoordinator:
             }
         )
 
-    async def async_upload(self, file_id: str, filename: str | None) -> None:
+    async def async_upload(self, file_id: str) -> None:
         """Store a browser-uploaded CSV in the import directory and import it.
 
         file_id is the token produced by the frontend file selector; Home
         Assistant keeps the uploaded payload in a temporary location until
         process_uploaded_file() hands us its path (and cleans it up on exit).
+        The file lands under a temporary name; async_import() then renames it
+        to the period it covers, so uploads never overwrite each other.
         """
         from homeassistant.components.file_upload import process_uploaded_file
 
-        def _store() -> str:
+        def _store() -> None:
             with process_uploaded_file(self.hass, file_id) as src:
-                target_name = (filename or src.name).strip() or src.name
-                target_name = Path(target_name).name
-                if not target_name.lower().endswith(".csv"):
-                    target_name += ".csv"
                 self.import_dir.mkdir(parents=True, exist_ok=True)
-                dest = self.import_dir / target_name
-                shutil.copyfile(src, dest)
-            return target_name
+                stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                shutil.copyfile(src, self.import_dir / f"mvm_upload_{stamp}.csv")
 
         _LOGGER.debug("MVM Next: feltöltés indul, file_id=%s", file_id)
-        stored_name = await self.hass.async_add_executor_job(_store)
-        _LOGGER.info(
-            "MVM Next: feltöltött fájl mentve ide: %s", self.import_dir / stored_name
-        )
-        await self.async_import(stored_name)
+        await self.hass.async_add_executor_job(_store)
+        await self.async_import(None)
         _LOGGER.info(
             "MVM Next: feltöltés feldolgozva, %s óra a statisztikában",
             self.attributes.get("imported_hours"),
@@ -448,13 +493,44 @@ class MvmImportCoordinator:
                 raise HomeAssistantError(f"Fájl nem található: {path}")
             force_reparse = path.name
 
-        csv_files = await self.hass.async_add_executor_job(
-            lambda: sorted(
+        def _scan_and_normalize() -> tuple[list[Path], dict[str, str]]:
+            """Glob the *.csv files, renaming each to the period it covers.
+
+            MVM Next exports all share one file name, so without this a new
+            month's export would overwrite the previous one on disk.
+            """
+            found = sorted(
                 p
                 for p in self.import_dir.glob("*")
                 if p.is_file() and p.suffix.lower() == ".csv"
             )
-        )
+            result: list[Path] = []
+            renamed: dict[str, str] = {}
+            for path in found:
+                if _CANON_RE.match(path.name):
+                    result.append(path)
+                    continue
+                canon = _canonical_name(path)
+                if not canon or canon == path.name:
+                    result.append(path)
+                    continue
+                target = self.import_dir / canon
+                path.replace(target)  # atomic; overwrites a same-period re-export
+                renamed[path.name] = canon
+                result.append(target)
+            # Two source files may map to the same period name.
+            return sorted(set(result)), renamed
+
+        csv_files, renamed = await self.hass.async_add_executor_job(_scan_and_normalize)
+        for old_name, new_name in renamed.items():
+            _LOGGER.info(
+                "MVM Next: fájl átnevezve a benne lévő időszak szerint: %s -> %s",
+                old_name,
+                new_name,
+            )
+            self._files.pop(old_name, None)
+            if force_reparse == old_name:
+                force_reparse = new_name
         _LOGGER.info(
             "MVM Next: import indul, könyvtár=%s, talált CSV=%d %s",
             self.import_dir,

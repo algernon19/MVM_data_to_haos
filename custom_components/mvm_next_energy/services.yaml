@@ -1,10 +1,10 @@
 import:
   name: MVM CSV importálása
   description: >-
-    Beolvassa a beállított könyvtárban (alapértelmezetten /config/mvm_next)
-    található MVM Next CSV export fájlokat, és frissíti a
-    mvm_next:imported_consumption long-term statisztikát. A már ismert és
-    változatlan fájlokat kihagyja, a módosítottakat és az újakat feldolgozza.
+    Beolvassa a beállított import könyvtárban található MVM Next CSV export
+    fájlokat, a benne lévő időszak szerint átnevezi őket, és teljesen
+    újraszámolja az mvm_next:imported_consumption és mvm_next:imported_cost
+    long-term statisztikát.
   fields:
     file_path:
       name: Fájl elérési út
@@ -14,7 +14,7 @@ import:
         fájlnév). Ha üresen marad, a teljes import könyvtár átvizsgálásra
         kerül.
       required: false
-      example: "/config/mvm_next/meresi_adatok_augusztus.csv"
+      example: "/homeassistant/mvm_next/mvm_2026-08.csv"
       selector:
         text:
 
@@ -22,8 +22,8 @@ upload:
   name: MVM CSV feltöltése
   description: >-
     CSV fájl feltöltése a böngészőből az import könyvtárba, majd azonnali
-    feldolgozása. A fájl bekerül a beállított import könyvtárba, és a
-    mvm_next:imported_consumption long-term statisztika frissül.
+    feldolgozása. A fájl a benne lévő időszak szerinti néven kerül mentésre
+    (pl. mvm_2026-08.csv), így a korábbi exportokat nem írja felül.
   fields:
     file:
       name: CSV fájl
@@ -32,12 +32,3 @@ upload:
       selector:
         file:
           accept: ".csv,text/csv"
-    filename:
-      name: Fájlnév
-      description: >-
-        Opcionális: a könyvtárba mentett fájl neve. Ha üresen marad, a
-        feltöltött fájl eredeti neve marad meg.
-      required: false
-      example: "meresi_adatok_augusztus.csv"
-      selector:
-        text:

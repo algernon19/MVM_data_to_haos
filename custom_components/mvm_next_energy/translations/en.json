@@ -46,10 +46,9 @@
       },
       "upload": {
         "title": "Upload MVM Next CSV",
-        "description": "Pick the downloaded MVM Next CSV export file. After upload it is stored in the import directory and the statistic is refreshed immediately.",
+        "description": "Pick the downloaded MVM Next CSV export file. It is stored under a name based on the period it covers (e.g. `mvm_2026-08.csv`) so it never overwrites an earlier export, and the statistic is refreshed immediately.",
         "data": {
-          "file": "CSV file",
-          "filename": "Saved file name (optional)"
+          "file": "CSV file"
         }
       },
       "done": {
@@ -81,10 +80,6 @@
         "file": {
           "name": "CSV file",
           "description": "The MVM Next CSV export file to upload."
-        },
-        "filename": {
-          "name": "File name",
-          "description": "Optional: name for the file saved into the directory. If left empty, the uploaded file's original name is kept."
         }
       }
     }

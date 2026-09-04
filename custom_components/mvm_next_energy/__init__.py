@@ -12,7 +12,6 @@ import homeassistant.helpers.config_validation as cv
 from .const import (
     ATTR_FILE,
     ATTR_FILE_PATH,
-    ATTR_FILENAME,
     DOMAIN,
     SERVICE_IMPORT,
     SERVICE_UPLOAD,
@@ -32,7 +31,6 @@ SERVICE_IMPORT_SCHEMA = vol.Schema(
 SERVICE_UPLOAD_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_FILE): cv.string,
-        vol.Optional(ATTR_FILENAME): cv.string,
     }
 )
 
@@ -52,9 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_import(call.data.get(ATTR_FILE_PATH))
 
     async def _handle_upload(call: ServiceCall) -> None:
-        await coordinator.async_upload(
-            call.data[ATTR_FILE], call.data.get(ATTR_FILENAME)
-        )
+        await coordinator.async_upload(call.data[ATTR_FILE])
 
     if not hass.services.has_service(DOMAIN, SERVICE_IMPORT):
         hass.services.async_register(

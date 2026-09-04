@@ -15,7 +15,6 @@ from homeassistant.helpers.selector import FileSelector, FileSelectorConfig
 
 from .const import (
     ATTR_FILE,
-    ATTR_FILENAME,
     CONF_ANNUAL_THRESHOLD,
     CONF_COST_ENABLED,
     CONF_IMPORT_DIR,
@@ -175,9 +174,8 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
             if coordinator is None:
                 errors["base"] = "not_loaded"
             else:
-                filename = (user_input.get(ATTR_FILENAME) or "").strip() or None
                 try:
-                    await coordinator.async_upload(user_input[ATTR_FILE], filename)
+                    await coordinator.async_upload(user_input[ATTR_FILE])
                 except HomeAssistantError as err:
                     _LOGGER.exception("MVM Next feltöltés hiba")
                     errors["base"] = "upload_failed"
@@ -195,7 +193,6 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(ATTR_FILE): FileSelector(
                     FileSelectorConfig(accept=".csv,text/csv")
                 ),
-                vol.Optional(ATTR_FILENAME): str,
             }
         )
         return self.async_show_form(

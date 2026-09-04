@@ -36,7 +36,6 @@ SERVICE_IMPORT = "import"
 SERVICE_UPLOAD = "upload"
 ATTR_FILE_PATH = "file_path"
 ATTR_FILE = "file"
-ATTR_FILENAME = "filename"
 
 SIGNAL_UPDATE = f"{DOMAIN}_update"
 
