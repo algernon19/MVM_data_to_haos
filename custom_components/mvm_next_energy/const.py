@@ -36,6 +36,32 @@ DEFAULT_PRICE_LOW = 36.39
 DEFAULT_PRICE_HIGH = 70.104
 DEFAULT_ANNUAL_THRESHOLD = 2523.0
 
+# --- MVM "D" (dynamic, HUPX-based) tariff ---------------------------------
+# What-if comparison: what the same consumption would cost on the announced
+# dynamic tariff. Per-kWh gross price for an hour:
+#   ( hupx_eur_mwh * eur_huf / 1000 + merchant + transmission + distribution )
+#   * (1 + vat/100)
+# Historical hourly day-ahead prices come from api.energy-charts.info (opt-in,
+# needs internet). Fee defaults match the ha-mvm-d-tariff project.
+COST_D_STATISTIC_ID = "mvm_next:imported_cost_d"
+COST_D_STATISTIC_NAME = "MVM Next – Vételezett fogyasztás költsége (D tarifa)"
+ENERGY_CHARTS_PRICE_URL = "https://api.energy-charts.info/price"
+
+CONF_D_ENABLED = "d_enabled"
+CONF_D_MERCHANT_FEE = "d_merchant_fee_huf_kwh"
+CONF_D_TRANSMISSION_FEE = "d_transmission_fee_huf_kwh"
+CONF_D_DISTRIBUTION_FEE = "d_distribution_fee_huf_kwh"
+CONF_D_VAT_PERCENT = "d_vat_percent"
+CONF_D_EUR_HUF = "d_eur_huf"
+DEFAULT_D_ENABLED = False
+DEFAULT_D_MERCHANT_FEE = 13.70
+DEFAULT_D_TRANSMISSION_FEE = 4.84
+DEFAULT_D_DISTRIBUTION_FEE = 18.56
+DEFAULT_D_VAT_PERCENT = 27.0
+DEFAULT_D_EUR_HUF = 400.0
+
+D_PRICE_STORAGE_KEY = f"{DOMAIN}.d_prices"
+
 SERVICE_IMPORT = "import"
 SERVICE_UPLOAD = "upload"
 ATTR_FILE_PATH = "file_path"

@@ -144,6 +144,25 @@ import automatikusan újraszámolódik (a CSV-ket nem kell újra beolvasni).
 Az Energia irányítópulton a „Hálózati fogyasztás" forrásnál válaszd a **Teljes költségeket
 követő entitás használata** opciót, és add meg az `mvm_next:imported_cost` statisztikát.
 
+### D (dinamikus) tarifa – „mi lenne, ha…"
+
+**Beállítás → D (dinamikus) tarifa összehasonlítás** menüben bekapcsolható egy összehasonlítás:
+mennyibe kerülne ugyanez a fogyasztás a bejelentett **MVM D (dinamikus)** tarifával.
+
+- A D tarifánál is **megmarad a kedvezményes éves keret** (lakossági 2523 kWh): a keretig az
+  A1 kedvezményes ár, **csak a keret feletti rész** megy a 15 perces HUPX tőzsdei áron.
+- Az órás tőzsdei árakat az integráció **letölti az internetről**
+  (`api.energy-charts.info`, ingyenes, token nélkül) – ez az **egyetlen** pont, ahol
+  hálózatot használ. Alapból **ki van kapcsolva**. A letöltött árakat gyorsítótárazza.
+- A D tarifa végleges díjtételei még nem publikusak, ezért **szabadon állíthatók**
+  (kereskedői / átviteli / elosztói díj, ÁFA, EUR/HUF árfolyam). Egységár:
+  `(HUPX €/MWh × EUR/HUF ÷ 1000 + díjak) × (1 + ÁFA%)`.
+- Éles indulás legkorábban **2027. január 1.** – addig ez tisztán tájékoztató.
+
+Eredmény: `mvm_next:imported_cost_d` statisztika, valamint a
+`sensor.mvm_next_d_tarifa_idei_koltseg` és `sensor.mvm_next_a1_es_d_kulonbseg`
+szenzorok (utóbbi attribútumában havi bontású A1 vs D táblázat).
+
 ---
 
 ## Szolgáltatás: `mvm_next_energy.import`
@@ -196,6 +215,8 @@ Az integráció egy „MVM Next Energy Import” eszközt hoz létre a következ
 | MVM Next Éves költség | `sensor` | Az idei fogyasztás költsége a beállított pénznemben. |
 | MVM Next Aktuális ársáv | `sensor` | `kedvezményes` vagy `piaci` – melyik egységáron vagy éppen. |
 | MVM Next Becsült sávváltás | `sensor` | Az eddigi éves átlagfogyasztásból becsült dátum, amikor piaci árra vált (vagy „átlépve" / „2026. után"). |
+| MVM Next D tarifa idei költség | `sensor` | Az idei fogyasztás költsége a D (dinamikus) tarifával (ha be van kapcsolva). |
+| MVM Next A1 és D különbség | `sensor` | D − A1 idei költség (pozitív = a D drágább). Attribútumban havi bontású összehasonlítás. |
 | MVM CSV importálása | `button` | Megnyomásra átvizsgálja az import könyvtárat és feltölti a frissített statisztikát. |
 
 A feltöltött long-term statisztika azonosítója: **`mvm_next:imported_consumption`**

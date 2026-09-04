@@ -22,16 +22,31 @@ from homeassistant.helpers.storage import Store
 from .const import (
     CONF_ANNUAL_THRESHOLD,
     CONF_COST_ENABLED,
+    CONF_D_DISTRIBUTION_FEE,
+    CONF_D_ENABLED,
+    CONF_D_EUR_HUF,
+    CONF_D_MERCHANT_FEE,
+    CONF_D_TRANSMISSION_FEE,
+    CONF_D_VAT_PERCENT,
     CONF_IMPORT_DIR,
     CONF_PRICE_HIGH,
     CONF_PRICE_LOW,
     CONF_START_DATE,
+    COST_D_STATISTIC_ID,
+    COST_D_STATISTIC_NAME,
     COST_STATISTIC_ID,
     COST_STATISTIC_NAME,
+    D_PRICE_STORAGE_KEY,
     CSV_DIRECTION,
     CSV_STATUS_OK,
     CSV_UNIT,
     DEFAULT_ANNUAL_THRESHOLD,
+    DEFAULT_D_DISTRIBUTION_FEE,
+    DEFAULT_D_ENABLED,
+    DEFAULT_D_EUR_HUF,
+    DEFAULT_D_MERCHANT_FEE,
+    DEFAULT_D_TRANSMISSION_FEE,
+    DEFAULT_D_VAT_PERCENT,
     DEFAULT_COST_ENABLED,
     DEFAULT_PRICE_HIGH,
     DEFAULT_PRICE_LOW,
@@ -45,6 +60,7 @@ from .const import (
     STORAGE_VERSION,
     TIME_ZONE,
 )
+from .dynamic import DTariffConfig, async_d_gross_prices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -347,13 +363,16 @@ def _compute_cost_hourly(
     price_high: float,
     annual_threshold: float,
     start_date: date | None = None,
+    dynamic_high: dict[str, float] | None = None,
 ) -> dict[str, float]:
     """Apply the tiered household tariff to each hour of the series.
 
     Within a calendar year the consumption up to the yearly allowance is billed
-    at ``price_low``; every kWh above it at ``price_high``. Hours are processed
-    in chronological order so an hour that straddles the threshold is split
-    proportionally. Year boundaries use Europe/Budapest local time.
+    at ``price_low``; every kWh above it at ``price_high`` - or, for the MVM
+    "D" tariff, at ``dynamic_high[hour]`` (that hour's dynamic price) when a
+    mapping is given. Hours are processed in chronological order so an hour that
+    straddles the threshold is split proportionally. Year boundaries use
+    Europe/Budapest local time.
 
     Consumption before ``start_date`` (the account holder's contract start)
     belongs to the previous user and is left out of the cost series; for the
@@ -373,8 +392,11 @@ def _compute_cost_hourly(
 
         low_part = max(0.0, min(kwh, allowance - used))
         high_part = kwh - low_part
+        hi_price = price_high
+        if dynamic_high is not None:
+            hi_price = dynamic_high.get(start_iso, price_high)
         cost_hourly[start_iso] = round(
-            low_part * price_low + high_part * price_high, 4
+            low_part * price_low + high_part * hi_price, 4
         )
         year_used[year] = used + kwh
 
@@ -382,13 +404,17 @@ def _compute_cost_hourly(
 
 
 def _push_cost_statistics(
-    hass: HomeAssistant, currency: str, cost_hourly: dict[str, float]
+    hass: HomeAssistant,
+    currency: str,
+    cost_hourly: dict[str, float],
+    statistic_id: str = COST_STATISTIC_ID,
+    name: str = COST_STATISTIC_NAME,
 ) -> float:
-    """Push the derived cost series as a second external statistic (currency)."""
+    """Push a derived cost series as an external statistic (currency unit)."""
     metadata: StatisticMetaData = {
-        "statistic_id": COST_STATISTIC_ID,
-        "source": COST_STATISTIC_ID.split(":", 1)[0],
-        "name": COST_STATISTIC_NAME,
+        "statistic_id": statistic_id,
+        "source": statistic_id.split(":", 1)[0],
+        "name": name,
         "unit_of_measurement": currency,
         "has_sum": True,
         "unit_class": None,
@@ -411,8 +437,34 @@ def _push_cost_statistics(
             }
         )
 
-    _clear_then_add(hass, COST_STATISTIC_ID, metadata, statistics)
+    _clear_then_add(hass, statistic_id, metadata, statistics)
     return round(running_total, 2)
+
+
+def _monthly_totals(cost_hourly: dict[str, float]) -> dict[str, float]:
+    """{YYYY-MM (Budapest): summed cost} for a cost-per-hour series."""
+    months: dict[str, float] = {}
+    for start_iso, value in cost_hourly.items():
+        month = (
+            datetime.fromisoformat(start_iso)
+            .astimezone(BUDAPEST_TZ)
+            .strftime("%Y-%m")
+        )
+        months[month] = round(months.get(month, 0.0) + value, 2)
+    return months
+
+
+def _restrict_from(
+    merged_hourly: dict[str, float], start_date: date | None
+) -> dict[str, float]:
+    """Drop hours before start_date (the account holder's contract start)."""
+    if start_date is None:
+        return merged_hourly
+    return {
+        iso: kwh
+        for iso, kwh in merged_hourly.items()
+        if datetime.fromisoformat(iso).astimezone(BUDAPEST_TZ).date() >= start_date
+    }
 
 
 def _compute_year_summary(
@@ -530,6 +582,24 @@ class MvmImportCoordinator:
     @property
     def annual_threshold(self) -> float:
         return float(self._opt(CONF_ANNUAL_THRESHOLD, DEFAULT_ANNUAL_THRESHOLD))
+
+    @property
+    def d_enabled(self) -> bool:
+        return bool(self._opt(CONF_D_ENABLED, DEFAULT_D_ENABLED))
+
+    @property
+    def d_config(self) -> DTariffConfig:
+        return DTariffConfig(
+            merchant_fee=float(self._opt(CONF_D_MERCHANT_FEE, DEFAULT_D_MERCHANT_FEE)),
+            transmission_fee=float(
+                self._opt(CONF_D_TRANSMISSION_FEE, DEFAULT_D_TRANSMISSION_FEE)
+            ),
+            distribution_fee=float(
+                self._opt(CONF_D_DISTRIBUTION_FEE, DEFAULT_D_DISTRIBUTION_FEE)
+            ),
+            vat_percent=float(self._opt(CONF_D_VAT_PERCENT, DEFAULT_D_VAT_PERCENT)),
+            eur_huf=float(self._opt(CONF_D_EUR_HUF, DEFAULT_D_EUR_HUF)),
+        )
 
     @property
     def contract_start(self) -> date | None:
@@ -793,6 +863,85 @@ class MvmImportCoordinator:
         self.year_summary = _compute_year_summary(
             merged_hourly, cost_hourly, self.annual_threshold, self.contract_start
         )
+
+        # --- MVM "D" (dynamic) tariff what-if comparison ----------------------
+        # The "D" tariff keeps the tiered A1 allowance: consumption up to the
+        # yearly limit stays on the reduced price, only the overage is priced
+        # at the hourly HUPX-based dynamic price.
+        d_error: str | None = None
+        if self.d_enabled:
+            year = self.year_summary["year"]
+            own_hourly = _restrict_from(merged_hourly, self.contract_start)
+            try:
+                d_prices, d_meta = await async_d_gross_prices(
+                    self.hass,
+                    f"{D_PRICE_STORAGE_KEY}_{self.entry.entry_id}",
+                    list(own_hourly),
+                    self.d_config,
+                )
+                d_cost_hourly = _compute_cost_hourly(
+                    own_hourly,
+                    self.price_low,
+                    self.price_high,
+                    self.annual_threshold,
+                    self.contract_start,
+                    dynamic_high=d_prices,
+                )
+                currency = self.hass.config.currency or "HUF"
+                d_total = _push_cost_statistics(
+                    self.hass,
+                    currency,
+                    d_cost_hourly,
+                    COST_D_STATISTIC_ID,
+                    COST_D_STATISTIC_NAME,
+                )
+                a1_monthly = _monthly_totals(
+                    _restrict_from(cost_hourly, self.contract_start)
+                )
+                d_monthly = _monthly_totals(d_cost_hourly)
+                months = sorted(set(a1_monthly) | set(d_monthly))
+                d_year = round(
+                    sum(
+                        c
+                        for iso, c in d_cost_hourly.items()
+                        if datetime.fromisoformat(iso).astimezone(BUDAPEST_TZ).year
+                        == year
+                    ),
+                    2,
+                )
+                a1_year = self.year_summary.get("year_cost", 0.0)
+                self.year_summary.update(
+                    {
+                        "d_enabled": True,
+                        "d_total_cost": d_total,
+                        "year_cost_d": d_year,
+                        "year_cost_a1_vs_d": round(d_year - a1_year, 2),
+                        "d_hours_priced": d_meta.get("hours_priced"),
+                        "d_hours_total": d_meta.get("hours_total"),
+                        "monthly_comparison": [
+                            {
+                                "month": m,
+                                "a1": a1_monthly.get(m, 0.0),
+                                "d": d_monthly.get(m, 0.0),
+                            }
+                            for m in months
+                        ],
+                    }
+                )
+                _LOGGER.info(
+                    "MVM Next: D tarifa – %d/%d óra beárazva, idei D költség %.0f, "
+                    "A1 %.0f (különbség %.0f)",
+                    d_meta.get("hours_priced", 0),
+                    d_meta.get("hours_total", 0),
+                    d_year,
+                    a1_year,
+                    d_year - a1_year,
+                )
+            except Exception as err:  # noqa: BLE001 - keep the import intact
+                d_error = f"{type(err).__name__}: {err}"
+                _LOGGER.exception("MVM Next: D tarifa számítás hiba")
+        self.year_summary["d_error"] = d_error
+
         _LOGGER.info("MVM Next: idei összegzés: %s", self.year_summary)
 
         now_local = datetime.now(BUDAPEST_TZ)

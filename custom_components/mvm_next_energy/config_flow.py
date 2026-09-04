@@ -21,12 +21,24 @@ from .const import (
     ATTR_FILE,
     CONF_ANNUAL_THRESHOLD,
     CONF_COST_ENABLED,
+    CONF_D_DISTRIBUTION_FEE,
+    CONF_D_ENABLED,
+    CONF_D_EUR_HUF,
+    CONF_D_MERCHANT_FEE,
+    CONF_D_TRANSMISSION_FEE,
+    CONF_D_VAT_PERCENT,
     CONF_IMPORT_DIR,
     CONF_PRICE_HIGH,
     CONF_PRICE_LOW,
     CONF_START_DATE,
     DEFAULT_ANNUAL_THRESHOLD,
     DEFAULT_COST_ENABLED,
+    DEFAULT_D_DISTRIBUTION_FEE,
+    DEFAULT_D_ENABLED,
+    DEFAULT_D_EUR_HUF,
+    DEFAULT_D_MERCHANT_FEE,
+    DEFAULT_D_TRANSMISSION_FEE,
+    DEFAULT_D_VAT_PERCENT,
     DEFAULT_PRICE_HIGH,
     DEFAULT_PRICE_LOW,
     DOMAIN,
@@ -90,8 +102,62 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         return self.async_show_menu(
-            step_id="init", menu_options=["upload", "folder", "pricing"]
+            step_id="init",
+            menu_options=["upload", "folder", "pricing", "d_tariff"],
         )
+
+    async def async_step_d_tariff(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        current = {**self.config_entry.data, **self.config_entry.options}
+
+        if user_input is not None:
+            return self.async_create_entry(
+                title="",
+                data={
+                    **self.config_entry.options,
+                    CONF_D_ENABLED: user_input[CONF_D_ENABLED],
+                    CONF_D_MERCHANT_FEE: user_input[CONF_D_MERCHANT_FEE],
+                    CONF_D_TRANSMISSION_FEE: user_input[CONF_D_TRANSMISSION_FEE],
+                    CONF_D_DISTRIBUTION_FEE: user_input[CONF_D_DISTRIBUTION_FEE],
+                    CONF_D_VAT_PERCENT: user_input[CONF_D_VAT_PERCENT],
+                    CONF_D_EUR_HUF: user_input[CONF_D_EUR_HUF],
+                },
+            )
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_D_ENABLED,
+                    default=current.get(CONF_D_ENABLED, DEFAULT_D_ENABLED),
+                ): bool,
+                vol.Required(
+                    CONF_D_MERCHANT_FEE,
+                    default=current.get(CONF_D_MERCHANT_FEE, DEFAULT_D_MERCHANT_FEE),
+                ): vol.Coerce(float),
+                vol.Required(
+                    CONF_D_TRANSMISSION_FEE,
+                    default=current.get(
+                        CONF_D_TRANSMISSION_FEE, DEFAULT_D_TRANSMISSION_FEE
+                    ),
+                ): vol.Coerce(float),
+                vol.Required(
+                    CONF_D_DISTRIBUTION_FEE,
+                    default=current.get(
+                        CONF_D_DISTRIBUTION_FEE, DEFAULT_D_DISTRIBUTION_FEE
+                    ),
+                ): vol.Coerce(float),
+                vol.Required(
+                    CONF_D_VAT_PERCENT,
+                    default=current.get(CONF_D_VAT_PERCENT, DEFAULT_D_VAT_PERCENT),
+                ): vol.Coerce(float),
+                vol.Required(
+                    CONF_D_EUR_HUF,
+                    default=current.get(CONF_D_EUR_HUF, DEFAULT_D_EUR_HUF),
+                ): vol.Coerce(float),
+            }
+        )
+        return self.async_show_form(step_id="d_tariff", data_schema=schema)
 
     async def async_step_folder(
         self, user_input: dict[str, Any] | None = None

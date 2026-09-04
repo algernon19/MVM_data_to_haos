@@ -65,6 +65,18 @@ SUMMARY_SENSORS: tuple[MvmSummarySensor, ...] = (
         name="MVM Next Becsült sávváltás",
         icon="mdi:calendar-alert",
     ),
+    MvmSummarySensor(
+        key="year_cost_d",
+        name="MVM Next D tarifa idei költség",
+        icon="mdi:cash-clock",
+        currency_unit=True,
+    ),
+    MvmSummarySensor(
+        key="year_cost_a1_vs_d",
+        name="MVM Next A1 és D különbség",
+        icon="mdi:scale-balance",
+        currency_unit=True,
+    ),
 )
 
 
@@ -156,7 +168,13 @@ class MvmNextSummarySensor(_MvmBaseSensor):
     @property
     def extra_state_attributes(self) -> dict[str, object]:
         summary = self._coordinator.year_summary
-        return {
+        attrs: dict[str, object] = {
             "year": summary.get("year"),
             "data_through": summary.get("data_through"),
         }
+        if self._description.key == "year_cost_a1_vs_d":
+            attrs["monthly_comparison"] = summary.get("monthly_comparison")
+            attrs["d_hours_priced"] = summary.get("d_hours_priced")
+            attrs["d_hours_total"] = summary.get("d_hours_total")
+            attrs["d_error"] = summary.get("d_error")
+        return attrs
