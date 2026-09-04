@@ -49,13 +49,14 @@
       },
       "pricing": {
         "title": "Költségszámítás",
-        "description": "A fogyasztás mellé a rendszer feltölt egy `mvm_next:imported_cost` költség-statisztikát is (a Home Assistantban beállított pénznemben – állítsd HUF-ra). Sávos lakossági ár: az éves keretig a kedvezményes, felette a piaci egységár. Az éves keret naptári évenként nullázódik. Ha megadod a felhasználóváltás dátumát, az előtti fogyasztás (az előző felhasználóé) kimarad, és arra az évre a keret időarányosan csökken. Mentés után minden korábbi import újraszámolódik.",
+        "description": "A fogyasztás mellé a rendszer feltölt egy `mvm_next:imported_cost` költség-statisztikát is (a Home Assistantban beállított pénznemben – állítsd HUF-ra). Sávos lakossági ár: a keretig a kedvezményes, felette a piaci egységár. A keret elszámolása lehet HAVI (a ~210 kWh/hó, ami a havi számlán megjelenik) vagy ÉVES (egy 2523 kWh-s keret jan. 1-től – ez az érték, amire az évvégi elszámolás rendezi). Ha megadod a felhasználóváltás dátumát, az előtti fogyasztás kimarad, és annak a keretnek időarányosan csökken az értéke. Mentés után minden korábbi import újraszámolódik.",
         "data": {
           "cost_enabled": "Költség-statisztika feltöltése",
           "price_low": "Kedvezményes ár (Ft/kWh, bruttó)",
           "price_high": "Piaci ár a keret felett (Ft/kWh, bruttó)",
           "annual_threshold_kwh": "Éves kedvezményes keret (kWh)",
-          "start_date": "Felhasználóváltás dátuma (opcionális)"
+          "start_date": "Felhasználóváltás dátuma (opcionális)",
+          "allowance_period": "Kedvezményes keret elszámolása"
         }
       },
       "upload": {
@@ -95,6 +96,14 @@
           "name": "CSV fájl",
           "description": "A feltöltendő MVM Next CSV export fájl."
         }
+      }
+    }
+  },
+  "selector": {
+    "allowance_period": {
+      "options": {
+        "monthly": "Havi (a számlán megjelenő ~210 kWh/hó)",
+        "yearly": "Éves (2523 kWh, jan. 1-től)"
       }
     }
   }

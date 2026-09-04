@@ -128,8 +128,16 @@ A számítás a **sávos lakossági villamosenergia-árat** követi:
   kedvezményes egységár (alapértelmezetten **36,39 Ft/kWh** bruttó),
 - a keret felett a piaci egységár (alapértelmezetten **70,104 Ft/kWh** bruttó).
 
-A keret minden naptári év elején nullázódik. A keretet átlépő óra arányosan
-kerül megosztásra a két ár között.
+**Keret elszámolása** – a *Beállítás → Áram ára* menüben választható:
+
+- **Havi** (alapértelmezett): a keret naptári hónapokra van osztva napszám szerint
+  (~210 kWh/hó) – ez az, ami **a havi számládon** megjelenik. Ha egy hónapban átléped,
+  arra a hónapra a többlet a piaci / dinamikus áron számolódik.
+- **Éves**: egyetlen 2523 kWh-s keret január 1-től – ez az az érték, **amire az MVM az
+  évvégi elszámolásnál rendez** (ha éves szinten a keret alatt maradsz, a hónap közben
+  piaci áron számolt többletet jóváírják).
+
+A keretet átlépő óra arányosan oszlik meg a két ár között.
 
 **Felhasználóváltás:** ha megadod a szerződésed kezdő dátumát (pl. beköltözés napja),
 akkor az az előtti fogyasztás – ami még az előző felhasználóé – **kimarad** a

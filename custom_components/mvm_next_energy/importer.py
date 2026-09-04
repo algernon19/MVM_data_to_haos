@@ -20,6 +20,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
 from .const import (
+    CONF_ALLOWANCE_PERIOD,
     CONF_ANNUAL_THRESHOLD,
     CONF_COST_ENABLED,
     CONF_D_DISTRIBUTION_FEE,
@@ -40,6 +41,7 @@ from .const import (
     CSV_DIRECTION,
     CSV_STATUS_OK,
     CSV_UNIT,
+    DEFAULT_ALLOWANCE_PERIOD,
     DEFAULT_ANNUAL_THRESHOLD,
     DEFAULT_D_DISTRIBUTION_FEE,
     DEFAULT_D_ENABLED,
@@ -361,6 +363,27 @@ def _year_allowance(
     return round(base_threshold * covered / days_in_year, 1)
 
 
+def _period_bucket(
+    local: datetime,
+    base_threshold: float,
+    start_date: date | None,
+    period: str,
+) -> tuple[tuple, float]:
+    """(accounting-bucket key, allowance for that bucket) for a timestamp.
+
+    "monthly": the yearly allowance split by day count into each month (this
+    is what a monthly invoice shows); "yearly": one bucket per calendar year.
+    """
+    if period == "monthly":
+        year, month = local.year, local.month
+        days_in_year = 366 if calendar.isleap(year) else 365
+        days_in_month = calendar.monthrange(year, month)[1]
+        if start_date and (year, month) == (start_date.year, start_date.month):
+            days_in_month -= start_date.day - 1
+        return (year, month), round(base_threshold * days_in_month / days_in_year, 1)
+    return (local.year,), _year_allowance(local.year, base_threshold, start_date)
+
+
 def _compute_cost_hourly(
     merged_hourly: dict[str, float],
     price_low: float,
@@ -368,21 +391,22 @@ def _compute_cost_hourly(
     annual_threshold: float,
     start_date: date | None = None,
     dynamic_high: dict[str, float] | None = None,
+    period: str = "yearly",
 ) -> dict[str, float]:
-    """Apply the tiered household tariff to each hour of the series.
+    """Apply the tiered household tariff to each slot of the series.
 
-    Within a calendar year the consumption up to the yearly allowance is billed
-    at ``price_low``; every kWh above it at ``price_high`` - or, for the MVM
-    "D" tariff, at ``dynamic_high[hour]`` (that hour's dynamic price) when a
-    mapping is given. Hours are processed in chronological order so an hour that
-    straddles the threshold is split proportionally. Year boundaries use
-    Europe/Budapest local time.
+    Consumption up to the allowance for its accounting bucket (a month or the
+    whole year, per ``period``) is billed at ``price_low``; every kWh above it
+    at ``price_high`` - or, for the MVM "D" tariff, at ``dynamic_high[slot]``
+    (that slot's historical dynamic price) when a mapping is given. Slots are
+    processed in chronological order so one that straddles the threshold is
+    split proportionally. Boundaries use Europe/Budapest local time.
 
     Consumption before ``start_date`` (the account holder's contract start)
-    belongs to the previous user and is left out of the cost series; for the
-    year the start date falls in, the allowance is prorated by day count.
+    belongs to the previous user and is left out; the bucket the start date
+    falls in has its allowance prorated by day count.
     """
-    year_used: dict[int, float] = {}
+    used: dict[tuple, float] = {}
     cost_hourly: dict[str, float] = {}
 
     for start_iso in sorted(merged_hourly):
@@ -390,11 +414,10 @@ def _compute_cost_hourly(
         if start_date is not None and local.date() < start_date:
             continue
         kwh = merged_hourly[start_iso]
-        year = local.year
-        allowance = _year_allowance(year, annual_threshold, start_date)
-        used = year_used.get(year, 0.0)
+        key, allowance = _period_bucket(local, annual_threshold, start_date, period)
+        so_far = used.get(key, 0.0)
 
-        low_part = max(0.0, min(kwh, allowance - used))
+        low_part = max(0.0, min(kwh, allowance - so_far))
         high_part = kwh - low_part
         hi_price = price_high
         if dynamic_high is not None:
@@ -402,7 +425,7 @@ def _compute_cost_hourly(
         cost_hourly[start_iso] = round(
             low_part * price_low + high_part * hi_price, 4
         )
-        year_used[year] = used + kwh
+        used[key] = so_far + kwh
 
     return cost_hourly
 
@@ -489,6 +512,7 @@ def _compute_year_summary(
     cost_hourly: dict[str, float],
     annual_threshold: float,
     start_date: date | None = None,
+    period: str = "yearly",
 ) -> dict[str, object]:
     """Current-calendar-year figures for the allowance dashboard.
 
@@ -551,6 +575,7 @@ def _compute_year_summary(
         "tier_crossover_estimate": crossover,
         "data_through": max(year_hours).isoformat() if year_hours else None,
         "contract_start": start_date.isoformat() if start_date else None,
+        "allowance_period": period,
     }
 
 
@@ -600,6 +625,11 @@ class MvmImportCoordinator:
     @property
     def annual_threshold(self) -> float:
         return float(self._opt(CONF_ANNUAL_THRESHOLD, DEFAULT_ANNUAL_THRESHOLD))
+
+    @property
+    def allowance_period(self) -> str:
+        value = str(self._opt(CONF_ALLOWANCE_PERIOD, DEFAULT_ALLOWANCE_PERIOD))
+        return value if value in ("monthly", "yearly") else DEFAULT_ALLOWANCE_PERIOD
 
     @property
     def d_enabled(self) -> bool:
@@ -867,6 +897,7 @@ class MvmImportCoordinator:
             self.price_high,
             self.annual_threshold,
             self.contract_start,
+            period=self.allowance_period,
         )
         cost_hourly = _sum_to_hourly(cost_quarterly)
 
@@ -903,7 +934,11 @@ class MvmImportCoordinator:
                 )
 
         self.year_summary = _compute_year_summary(
-            merged_hourly, cost_hourly, self.annual_threshold, self.contract_start
+            merged_hourly,
+            cost_hourly,
+            self.annual_threshold,
+            self.contract_start,
+            self.allowance_period,
         )
 
         # --- MVM "D" (dynamic) tariff what-if comparison ----------------------
@@ -928,6 +963,7 @@ class MvmImportCoordinator:
                     self.annual_threshold,
                     self.contract_start,
                     dynamic_high=d_prices,
+                    period=self.allowance_period,
                 )
                 d_cost_hourly = _sum_to_hourly(d_cost_quarterly)
                 currency = self.hass.config.currency or "HUF"

@@ -15,10 +15,13 @@ from homeassistant.helpers.selector import (
     DateSelector,
     FileSelector,
     FileSelectorConfig,
+    SelectSelector,
+    SelectSelectorConfig,
 )
 
 from .const import (
     ATTR_FILE,
+    CONF_ALLOWANCE_PERIOD,
     CONF_ANNUAL_THRESHOLD,
     CONF_COST_ENABLED,
     CONF_D_DISTRIBUTION_FEE,
@@ -31,6 +34,7 @@ from .const import (
     CONF_PRICE_HIGH,
     CONF_PRICE_LOW,
     CONF_START_DATE,
+    DEFAULT_ALLOWANCE_PERIOD,
     DEFAULT_ANNUAL_THRESHOLD,
     DEFAULT_COST_ENABLED,
     DEFAULT_D_DISTRIBUTION_FEE,
@@ -203,6 +207,7 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
                 CONF_PRICE_LOW: user_input[CONF_PRICE_LOW],
                 CONF_PRICE_HIGH: user_input[CONF_PRICE_HIGH],
                 CONF_ANNUAL_THRESHOLD: user_input[CONF_ANNUAL_THRESHOLD],
+                CONF_ALLOWANCE_PERIOD: user_input[CONF_ALLOWANCE_PERIOD],
                 CONF_START_DATE: user_input.get(CONF_START_DATE, ""),
             }
             # The entry update listener re-pushes both statistics with the new
@@ -229,6 +234,17 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
                         CONF_ANNUAL_THRESHOLD, DEFAULT_ANNUAL_THRESHOLD
                     ),
                 ): vol.Coerce(float),
+                vol.Required(
+                    CONF_ALLOWANCE_PERIOD,
+                    default=current.get(
+                        CONF_ALLOWANCE_PERIOD, DEFAULT_ALLOWANCE_PERIOD
+                    ),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=["monthly", "yearly"],
+                        translation_key="allowance_period",
+                    )
+                ),
                 vol.Optional(
                     CONF_START_DATE,
                     description={

@@ -31,6 +31,12 @@ CONF_ANNUAL_THRESHOLD = "annual_threshold_kwh"
 # belongs to the previous user; for the calendar year it falls in, the yearly
 # allowance is prorated by the number of days remaining in that year.
 CONF_START_DATE = "start_date"
+# How the reduced-price allowance is accounted: "monthly" (the ~210 kWh/month
+# that shows up on each invoice, the yearly 2523 kWh split by day count) or
+# "yearly" (one 2523 kWh bucket from 1 January - the figure the year-end
+# reconciliation settles to).
+CONF_ALLOWANCE_PERIOD = "allowance_period"
+DEFAULT_ALLOWANCE_PERIOD = "monthly"
 DEFAULT_COST_ENABLED = True
 DEFAULT_PRICE_LOW = 36.39
 DEFAULT_PRICE_HIGH = 70.104
