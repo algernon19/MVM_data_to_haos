@@ -13,6 +13,7 @@ prices and rates are cached on disk so a re-import does not re-download them.
 """
 from __future__ import annotations
 
+import asyncio
 import html
 import logging
 import re
@@ -132,22 +133,33 @@ class DMarketStore:
 
             seconds = payload.get("unix_seconds") or []
             prices = payload.get("price") or []
+            # Before ~mid-2025 the HU day-ahead auction was hourly (3600 s
+            # steps); each hourly price then genuinely applied to all four
+            # quarter-hours, so expand it to the 15-minute grid.
+            resolution = seconds[1] - seconds[0] if len(seconds) > 1 else 3600
+            per_point = max(1, round(resolution / 900))
             added = 0
             for sec, price in zip(seconds, prices):
                 if price is None:
                     continue
-                slot = datetime.fromtimestamp(sec, timezone.utc).replace(
+                base = datetime.fromtimestamp(sec, timezone.utc).replace(
                     second=0, microsecond=0
                 )
-                self._prices[slot.isoformat()] = round(float(price), 4)
-                added += 1
+                value = round(float(price), 4)
+                for k in range(per_point):
+                    slot = base + timedelta(minutes=15 * k)
+                    self._prices[slot.isoformat()] = value
+                    added += 1
             _LOGGER.info(
-                "MVM Next: D tarifa – %d negyedórás ár letöltve (%s..%s)",
+                "MVM Next: D tarifa – %d negyedórás ár letöltve (%s..%s, %ds felbontás)",
                 added,
                 cursor,
                 chunk_end,
+                resolution,
             )
             cursor = chunk_end + timedelta(days=1)
+            if cursor <= end:
+                await asyncio.sleep(1)  # be polite to the free API
 
     # -- MNB EUR/HUF -----------------------------------------------------------
     async def async_rates_for(self, days: list[date]) -> dict[str, float]:

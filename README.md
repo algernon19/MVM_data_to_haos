@@ -160,9 +160,13 @@ mennyibe kerülne ugyanez a fogyasztás a bejelentett **MVM D (dinamikus)** tari
 - A D tarifánál is **megmarad a kedvezményes éves keret** (lakossági 2523 kWh): a keretig az
   A1 kedvezményes ár, **csak a keret feletti rész** megy a **15 perces** HUPX tőzsdei áron
   (a számítás végig negyedórás felbontású, csak a long-term statisztika óránkénti).
-- Az árakat az integráció **letölti az internetről**: a 15 perces HUPX day-ahead árakat a
+- Az árakat az integráció **letölti az internetről**: a HUPX day-ahead árakat a
   `api.energy-charts.info`-ról (ingyenes, token nélkül), és – ha az árfolyamot `0`-ra
   állítod – a **napi MNB EUR/HUF árfolyamot** az MNB hivatalos web-szolgáltatásából.
+  Az energy-charts a magyar árakat **évekre visszamenőleg** tartja; ~2025 közepéig
+  óránkénti bontásban (akkoriban a tőzsdei aukció is órás volt, így ugyanaz az ár
+  vonatkozott mind a négy negyedórára), utána 15 percesben – így a **korábbi számlák**
+  is visszaszámolhatók.
   Ez az **egyetlen** pont, ahol hálózatot használ. Alapból **ki van kapcsolva**. A
   letöltött árakat/árfolyamokat lemezre gyorsítótárazza.
 - A D tarifa végleges díjtételei még nem publikusak, ezért **szabadon állíthatók**
