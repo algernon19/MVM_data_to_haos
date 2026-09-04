@@ -46,7 +46,8 @@ DEFAULT_ANNUAL_THRESHOLD = 2523.0
 COST_D_STATISTIC_ID = "mvm_next:imported_cost_d"
 COST_D_STATISTIC_NAME = "MVM Next – Vételezett fogyasztás költsége (D tarifa)"
 ENERGY_CHARTS_PRICE_URL = "https://api.energy-charts.info/price"
-MNB_SOAP_URL = "https://www.mnb.hu/arfolyamok.asmx"
+# The MNB legacy SOAP service is only served over plain HTTP (the https URL 404s).
+MNB_SOAP_URL = "http://www.mnb.hu/arfolyamok.asmx"
 
 CONF_D_ENABLED = "d_enabled"
 CONF_D_MERCHANT_FEE = "d_merchant_fee_huf_kwh"
