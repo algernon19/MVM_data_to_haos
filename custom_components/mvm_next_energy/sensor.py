@@ -197,6 +197,7 @@ class MvmNextSummarySensor(_MvmBaseSensor):
                 "slot_start": data.get("slot_start"),
                 "hupx_eur_mwh": data.get("hupx_eur_mwh"),
                 "eur_huf": data.get("eur_huf"),
+                "forecast": data.get("forecast"),
             }
         attrs: dict[str, object] = {
             "year": summary.get("year"),

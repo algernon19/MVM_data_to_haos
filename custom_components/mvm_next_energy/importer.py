@@ -74,6 +74,7 @@ from .dynamic import (
     DTariffConfig,
     async_current_d_price,
     async_d_gross_prices,
+    async_d_price_forecast,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -718,18 +719,23 @@ class MvmImportCoordinator:
                 self.current_d = {}
                 async_dispatcher_send(self.hass, SIGNAL_UPDATE)
             return
+        store_key = f"{D_PRICE_STORAGE_KEY}_{self.entry.entry_id}"
         try:
-            data = await async_current_d_price(
-                self.hass,
-                f"{D_PRICE_STORAGE_KEY}_{self.entry.entry_id}",
-                self.d_config,
-            )
+            data = await async_current_d_price(self.hass, store_key, self.d_config)
         except Exception:  # noqa: BLE001 - a timer callback must not raise
             _LOGGER.debug("MVM Next: aktuális D ár lekérés hiba", exc_info=True)
             return
-        if data:
-            self.current_d = data
-            async_dispatcher_send(self.hass, SIGNAL_UPDATE)
+        if not data:
+            return
+        try:
+            data["forecast"] = await async_d_price_forecast(
+                self.hass, store_key, self.d_config
+            )
+        except Exception:  # noqa: BLE001 - a timer callback must not raise
+            _LOGGER.debug("MVM Next: D ár előrejelzés hiba", exc_info=True)
+            data["forecast"] = self.current_d.get("forecast", [])
+        self.current_d = data
+        async_dispatcher_send(self.hass, SIGNAL_UPDATE)
 
     async def async_upload(self, file_id: str) -> None:
         """Store a browser-uploaded CSV in the import directory and import it.

@@ -90,12 +90,17 @@ class DMarketStore:
 
     # -- day-ahead prices --------------------------------------------------
     async def async_prices_for(self, slots_utc: list[datetime]) -> dict[str, float]:
+        """Prices for the given UTC slots, fetching whatever is missing.
+
+        No cut-off at "now": HUPX day-ahead prices are published for the next
+        day around 13:00 CET, so a slot up to ~36h in the future can already
+        be known. If it genuinely isn't published yet, energy-charts simply
+        won't have it and it's just missing from the result - the next call
+        (e.g. the 15-minute refresh) tries again.
+        """
         await self.async_load()
-        now = datetime.now(timezone.utc)
         wanted = {s.replace(second=0, microsecond=0) for s in slots_utc}
-        missing = sorted(
-            s for s in wanted if s <= now and s.isoformat() not in self._prices
-        )
+        missing = sorted(s for s in wanted if s.isoformat() not in self._prices)
         if missing:
             await self._async_fetch_prices(missing[0].date(), missing[-1].date())
             await self._async_save()
@@ -249,6 +254,61 @@ async def async_current_d_price(
         "gross_huf_kwh": round(config.gross_price(eur_mwh, rate), 2),
         "slot_start": slot.isoformat(),
     }
+
+
+async def async_d_price_forecast(
+    hass: HomeAssistant,
+    store_key: str,
+    config: DTariffConfig,
+    hours_back: int = 2,
+    hours_ahead: int = 24,
+) -> list[dict[str, object]]:
+    """Known HUPX/D-tariff prices from ``hours_back`` ago to ``hours_ahead``.
+
+    HUPX publishes the next day's day-ahead prices around 13:00 CET, so by
+    the afternoon roughly the next ~24-36h are already known - this is what
+    lets an automation plan around tomorrow's cheap/expensive hours. Only
+    slots that are actually published come back; call again later (e.g. on
+    the next 15-minute refresh) to pick up newly published hours.
+    """
+    store = DMarketStore(hass, store_key)
+    now = datetime.now(timezone.utc)
+    start = now.replace(
+        minute=(now.minute // 15) * 15, second=0, microsecond=0
+    ) - timedelta(hours=hours_back)
+    n_slots = int((hours_back + hours_ahead) * 4)
+    slots = [start + timedelta(minutes=15 * i) for i in range(n_slots)]
+
+    prices = await store.async_prices_for(slots)
+    if not prices:
+        return []
+
+    if config.eur_huf > 0:
+        rates: dict[str, float] = {}
+    else:
+        days = sorted({s.astimezone(_BUDAPEST).date() for s in slots})
+        rates = await store.async_rates_for(days)
+
+    forecast: list[dict[str, object]] = []
+    for slot in slots:
+        eur_mwh = prices.get(slot.isoformat())
+        if eur_mwh is None:
+            continue
+        if config.eur_huf > 0:
+            rate = config.eur_huf
+        else:
+            rate = rates.get(slot.astimezone(_BUDAPEST).date().isoformat())
+        if rate is None:
+            continue
+        forecast.append(
+            {
+                "start": slot.isoformat(),
+                "hupx_eur_mwh": round(eur_mwh, 2),
+                "raw_huf_kwh": round(eur_mwh * rate / 1000.0, 2),
+                "gross_huf_kwh": round(config.gross_price(eur_mwh, rate), 2),
+            }
+        )
+    return forecast
 
 
 async def async_d_gross_prices(

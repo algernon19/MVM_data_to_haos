@@ -257,8 +257,72 @@ Az integráció egy „MVM Next Energy Import” eszközt hoz létre a következ
 | MVM Next Becsült sávváltás | `sensor` | Az eddigi éves átlagfogyasztásból becsült dátum, amikor piaci árra vált (vagy „átlépve" / „2026. után"). |
 | MVM Next D tarifa idei költség | `sensor` | Az idei fogyasztás költsége a D (dinamikus) tarifával (ha be van kapcsolva). |
 | MVM Next A1 és D különbség | `sensor` | D − A1 idei költség (pozitív = a D drágább). Attribútumban havi bontású összehasonlítás. |
-| MVM Next D tarifa aktuális ár | `sensor` | A D tarifa becsült **aktuális** bruttó egységára (Ft/kWh), 15 percenként frissül. |
-| MVM Next D tarifa HUPX nyers ár | `sensor` | Az aktuális HUPX tőzsdei ár Ft/kWh-ra átszámolva (díjak nélkül). |
+| MVM Next D tarifa aktuális ár | `sensor` | A D tarifa becsült **aktuális** bruttó egységára (Ft/kWh), 15 percenként frissül. Attribútuma: `forecast` – lásd lent. |
+| MVM Next D tarifa HUPX nyers ár | `sensor` | Az aktuális HUPX tőzsdei ár Ft/kWh-ra átszámolva (díjak nélkül). Attribútuma: `forecast`. |
+
+### Áram-előrejelzés (`forecast` attribútum) – automatizálásokhoz
+
+A HUPX day-ahead árak a másnapra kb. **13:00-kor (CET)** megjelennek, tehát a mai naptól
+számítva kb. **+24–36 órára előre ismertek**. A két „D tarifa" szenzor `forecast`
+attribútuma ezt tartalmazza: egy lista `{start, hupx_eur_mwh, raw_huf_kwh, gross_huf_kwh}`
+elemekből, negyedóránként, kb. 2 órával a jelen előttől 24 órával előre (ameddig az adat
+publikálva van – a nem publikált jövőbeli órák egyszerűen hiányoznak, a következő
+15 perces frissítéskor bekerülnek, amint megjelennek).
+
+Automatizálásban például:
+
+```yaml
+{% set fc = state_attr('sensor.mvm_next_d_tarifa_aktualis_ar', 'forecast') %}
+{% set cheapest = fc | selectattr('start') | sort(attribute='gross_huf_kwh') | first %}
+Legolcsóbb óra: {{ as_datetime(cheapest.start) | as_local }} – {{ cheapest.gross_huf_kwh }} Ft/kWh
+```
+
+Grafikonon megjelenítve két lehetőség van:
+
+**a) Natív HA, telepítés nélkül** – táblázatos `markdown` kártya:
+
+```yaml
+type: markdown
+title: D tarifa – következő órák
+content: >
+  {% set fc = state_attr('sensor.mvm_next_d_tarifa_aktualis_ar', 'forecast') %}
+  {% if fc %}
+  | Idő | Ft/kWh |
+  |---|---|
+  {% for p in fc[:16] %}
+  | {{ (as_datetime(p.start) | as_local).strftime('%m.%d %H:%M') }} | {{ p.gross_huf_kwh }} |
+  {% endfor %}
+  {% else %}
+  Nincs adat.
+  {% endif %}
+```
+
+**b) Igazi grafikon, múlt + jövő egy vonalon** – ehhez a **`apexcharts-card`** HACS-os
+frontend kártya kell (egyszeri telepítés: HACS → Frontend → keresd meg és add hozzá):
+
+```yaml
+type: custom:apexcharts-card
+header:
+  title: D tarifa ár (előzmény + előrejelzés)
+  show: true
+graph_span: 36h
+span:
+  start: hour
+  offset: "-12h"
+now:
+  show: true
+  label: Most
+series:
+  - entity: sensor.mvm_next_d_tarifa_aktualis_ar
+    name: Tényleges (előzmény)
+    type: line
+  - entity: sensor.mvm_next_d_tarifa_aktualis_ar
+    name: Előrejelzés
+    type: line
+    color: "#e8a33d"
+    data_generator: |
+      return entity.attributes.forecast.map(p => [new Date(p.start).getTime(), p.gross_huf_kwh]);
+```
 | MVM CSV importálása | `button` | Megnyomásra átvizsgálja az import könyvtárat és feltölti a frissített statisztikát. |
 
 A feltöltött long-term statisztika azonosítója: **`mvm_next:imported_consumption`**
