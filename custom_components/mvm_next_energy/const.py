@@ -23,6 +23,16 @@ STATISTIC_OWN_NAME = "MVM Next – Saját fogyasztás (felhasználóváltás ót
 STATISTIC_PREVIOUS_ID = "mvm_next:imported_consumption_previous"
 STATISTIC_PREVIOUS_NAME = "MVM Next – Előző felhasználó fogyasztása"
 
+# Hypothetical: what the previous account holder's own consumption would have
+# cost under your A1 / D tariff settings. Purely informational - never feeds
+# into the real allowance/cost calculation.
+COST_PREVIOUS_STATISTIC_ID = "mvm_next:imported_cost_previous"
+COST_PREVIOUS_STATISTIC_NAME = "MVM Next – Előző lakó fogyasztásának becsült költsége (A1)"
+COST_D_PREVIOUS_STATISTIC_ID = "mvm_next:imported_cost_d_previous"
+COST_D_PREVIOUS_STATISTIC_NAME = (
+    "MVM Next – Előző lakó fogyasztásának becsült költsége (D tarifa)"
+)
+
 # Second, derived statistic: the cost of the imported consumption, computed
 # from the Hungarian tiered household tariff. Its unit is the HA-configured
 # currency so the Energy dashboard accepts it under "total cost".

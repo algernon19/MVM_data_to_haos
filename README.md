@@ -49,6 +49,18 @@ keret- és költségszámításba **ne** számítson bele:
 A `sensor.mvm_next_import` attribútumaiban is megjelenik: `previous_tenant_kwh` (összesen
 hány kWh volt a váltás előtt) és `previous_tenant_monthly` (havi bontásban).
 
+**„Mi lett volna, ha…" a korábbi lakóra is:** ha a költségszámítás (és a D tarifa) be van
+kapcsolva, a rendszer az előző lakó fogyasztására is kiszámolja, mennyibe került volna
+A1-en, illetve a D tarifával (a saját beállított áraiddal és az akkori valós HUPX árakkal) –
+**tisztán tájékoztató jelleggel**, ez sosem számít bele a te keretedbe/költségedbe. Ehhez
+két újabb statisztika jön létre:
+
+- **`mvm_next:imported_cost_previous`** – az előző lakó fogyasztásának becsült A1 költsége.
+- **`mvm_next:imported_cost_d_previous`** – ugyanaz, D tarifával.
+
+A `sensor.mvm_next_import` attribútumai: `previous_cost_a1_total`, `previous_cost_d_total`,
+`previous_monthly_comparison` (havi A1/D bontás listaként).
+
 ---
 
 ## Telepítés

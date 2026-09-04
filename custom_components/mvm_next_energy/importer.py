@@ -33,8 +33,12 @@ from .const import (
     CONF_PRICE_HIGH,
     CONF_PRICE_LOW,
     CONF_START_DATE,
+    COST_D_PREVIOUS_STATISTIC_ID,
+    COST_D_PREVIOUS_STATISTIC_NAME,
     COST_D_STATISTIC_ID,
     COST_D_STATISTIC_NAME,
+    COST_PREVIOUS_STATISTIC_ID,
+    COST_PREVIOUS_STATISTIC_NAME,
     COST_STATISTIC_ID,
     COST_STATISTIC_NAME,
     D_PRICE_STORAGE_KEY,
@@ -915,9 +919,11 @@ class MvmImportCoordinator:
         # cost/allowance calculation below.
         previous_total_kwh = 0.0
         previous_monthly: dict[str, float] = {}
+        previous_quarters: dict[str, float] = {}
         if self.contract_start is not None:
             own_consumption = _restrict_from(merged_hourly, self.contract_start)
             previous_consumption = _restrict_before(merged_hourly, self.contract_start)
+            previous_quarters = _restrict_before(merged_quarters, self.contract_start)
             _push_statistics(
                 self.hass, own_consumption, STATISTIC_OWN_ID, STATISTIC_OWN_NAME
             )
@@ -1067,6 +1073,86 @@ class MvmImportCoordinator:
                 _LOGGER.exception("MVM Next: D tarifa számítás hiba")
         self.year_summary["d_error"] = d_error
 
+        # --- Hypothetical "what if the previous tenant had used A1 / D"? ---
+        # Purely informational: applies your price settings and (for D) the
+        # actual historical HUPX prices to the previous account holder's own
+        # consumption, as if that consumption had been yours - it never feeds
+        # into the real allowance/cost figures above.
+        previous_cost_error: str | None = None
+        previous_cost_summary: dict[str, object] = {}
+        if self.contract_start is not None and previous_quarters and self.cost_enabled:
+            try:
+                prev_cost_quarterly = _compute_cost_hourly(
+                    previous_quarters,
+                    self.price_low,
+                    self.price_high,
+                    self.annual_threshold,
+                    None,
+                    period=self.allowance_period,
+                )
+                prev_cost_hourly = _sum_to_hourly(prev_cost_quarterly)
+                currency = self.hass.config.currency or "HUF"
+                prev_a1_total = _push_cost_statistics(
+                    self.hass,
+                    currency,
+                    prev_cost_hourly,
+                    COST_PREVIOUS_STATISTIC_ID,
+                    COST_PREVIOUS_STATISTIC_NAME,
+                )
+                prev_monthly_a1 = _monthly_totals(prev_cost_quarterly)
+                prev_monthly_d: dict[str, float] = {}
+                prev_d_total: float | None = None
+
+                if self.d_enabled:
+                    prev_d_prices, prev_d_meta = await async_d_gross_prices(
+                        self.hass,
+                        f"{D_PRICE_STORAGE_KEY}_{self.entry.entry_id}",
+                        list(previous_quarters),
+                        self.d_config,
+                    )
+                    prev_cost_quarterly_d = _compute_cost_hourly(
+                        previous_quarters,
+                        self.price_low,
+                        self.price_high,
+                        self.annual_threshold,
+                        None,
+                        dynamic_high=prev_d_prices,
+                        period=self.allowance_period,
+                    )
+                    prev_cost_hourly_d = _sum_to_hourly(prev_cost_quarterly_d)
+                    prev_d_total = _push_cost_statistics(
+                        self.hass,
+                        currency,
+                        prev_cost_hourly_d,
+                        COST_D_PREVIOUS_STATISTIC_ID,
+                        COST_D_PREVIOUS_STATISTIC_NAME,
+                    )
+                    prev_monthly_d = _monthly_totals(prev_cost_quarterly_d)
+                    _LOGGER.info(
+                        "MVM Next: előző lakó – D tarifa %d/%d negyedóra beárazva",
+                        prev_d_meta.get("slots_priced", 0),
+                        prev_d_meta.get("slots_total", 0),
+                    )
+
+                months = sorted(set(prev_monthly_a1) | set(prev_monthly_d))
+                previous_cost_summary = {
+                    "previous_cost_a1_total": prev_a1_total,
+                    "previous_cost_d_total": prev_d_total,
+                    "previous_monthly_comparison": [
+                        {
+                            "month": m,
+                            "a1": prev_monthly_a1.get(m, 0.0),
+                            "d": prev_monthly_d.get(m, 0.0),
+                        }
+                        for m in months
+                    ],
+                }
+            except Exception as err:  # noqa: BLE001 - keep the import intact
+                previous_cost_error = f"{type(err).__name__}: {err}"
+                _LOGGER.exception(
+                    "MVM Next: előző lakó hipotetikus költségszámítás hiba"
+                )
+
         _LOGGER.info("MVM Next: idei összegzés: %s", self.year_summary)
 
         now_local = datetime.now(BUDAPEST_TZ)
@@ -1095,6 +1181,22 @@ class MvmImportCoordinator:
             ),
             "previous_tenant_kwh": previous_total_kwh,
             "previous_tenant_monthly": previous_monthly or None,
+            "previous_cost_a1_total": previous_cost_summary.get("previous_cost_a1_total"),
+            "previous_cost_d_total": previous_cost_summary.get("previous_cost_d_total"),
+            "previous_monthly_comparison": previous_cost_summary.get(
+                "previous_monthly_comparison"
+            ),
+            "previous_cost_error": previous_cost_error,
+            "previous_cost_statistic_id": (
+                COST_PREVIOUS_STATISTIC_ID
+                if previous_cost_summary.get("previous_cost_a1_total") is not None
+                else None
+            ),
+            "previous_cost_d_statistic_id": (
+                COST_D_PREVIOUS_STATISTIC_ID
+                if previous_cost_summary.get("previous_cost_d_total") is not None
+                else None
+            ),
         }
 
         await self._async_save_cache()
