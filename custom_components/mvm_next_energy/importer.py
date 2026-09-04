@@ -75,20 +75,35 @@ def _csv_date_span(path: Path) -> tuple[date, date] | None:
     """Return the (first, last) calendar date covered by a CSV (blocking)."""
     first: date | None = None
     last: date | None = None
+    parsed = 0
+    header: list[str] | None = None
+    first_data: list[str] | None = None
     with path.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.reader(handle, delimiter=";")
-        next(reader, None)  # header
+        header = next(reader, None)
         for row in reader:
             if len(row) < 2:
                 continue
+            if first_data is None:
+                first_data = row
             try:
                 day = datetime.strptime(row[1].strip(), "%Y. %m. %d. %H:%M").date()
             except ValueError:
                 continue
+            parsed += 1
             if first is None or day < first:
                 first = day
             if last is None or day > last:
                 last = day
+    _LOGGER.debug(
+        "MVM Next: %s – fejléc=%r, első adatsor=%r, dátumos sorok=%d, span=%s..%s",
+        path.name,
+        header,
+        first_data,
+        parsed,
+        first,
+        last,
+    )
     if first is None or last is None:
         return None
     return first, last
@@ -506,7 +521,10 @@ class MvmImportCoordinator:
             )
             result: list[Path] = []
             renamed: dict[str, str] = {}
+            spans: dict[str, str] = {}
             for path in found:
+                span = _csv_date_span(path)
+                spans[path.name] = f"{span[0]} … {span[1]}" if span else "nincs dátum"
                 if _CANON_RE.match(path.name):
                     result.append(path)
                     continue
@@ -519,9 +537,14 @@ class MvmImportCoordinator:
                 renamed[path.name] = canon
                 result.append(target)
             # Two source files may map to the same period name.
-            return sorted(set(result)), renamed
+            return sorted(set(result)), renamed, spans
 
-        csv_files, renamed = await self.hass.async_add_executor_job(_scan_and_normalize)
+        csv_files, renamed, spans = await self.hass.async_add_executor_job(
+            _scan_and_normalize
+        )
+        for name, span in spans.items():
+            _LOGGER.info("MVM Next: fájl %s – felismert időszak: %s", name, span)
+
         for old_name, new_name in renamed.items():
             _LOGGER.info(
                 "MVM Next: fájl átnevezve a benne lévő időszak szerint: %s -> %s",
