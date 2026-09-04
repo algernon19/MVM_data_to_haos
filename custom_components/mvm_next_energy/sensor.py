@@ -174,7 +174,8 @@ class MvmNextSummarySensor(_MvmBaseSensor):
         }
         if self._description.key == "year_cost_a1_vs_d":
             attrs["monthly_comparison"] = summary.get("monthly_comparison")
-            attrs["d_hours_priced"] = summary.get("d_hours_priced")
-            attrs["d_hours_total"] = summary.get("d_hours_total")
+            attrs["d_slots_priced"] = summary.get("d_slots_priced")
+            attrs["d_slots_total"] = summary.get("d_slots_total")
+            attrs["d_eur_huf_source"] = summary.get("d_eur_huf_source")
             attrs["d_error"] = summary.get("d_error")
         return attrs

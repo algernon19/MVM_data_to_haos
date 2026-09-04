@@ -46,6 +46,7 @@ DEFAULT_ANNUAL_THRESHOLD = 2523.0
 COST_D_STATISTIC_ID = "mvm_next:imported_cost_d"
 COST_D_STATISTIC_NAME = "MVM Next – Vételezett fogyasztás költsége (D tarifa)"
 ENERGY_CHARTS_PRICE_URL = "https://api.energy-charts.info/price"
+MNB_SOAP_URL = "https://www.mnb.hu/arfolyamok.asmx"
 
 CONF_D_ENABLED = "d_enabled"
 CONF_D_MERCHANT_FEE = "d_merchant_fee_huf_kwh"
@@ -58,7 +59,7 @@ DEFAULT_D_MERCHANT_FEE = 13.70
 DEFAULT_D_TRANSMISSION_FEE = 4.84
 DEFAULT_D_DISTRIBUTION_FEE = 18.56
 DEFAULT_D_VAT_PERCENT = 27.0
-DEFAULT_D_EUR_HUF = 400.0
+DEFAULT_D_EUR_HUF = 0.0  # 0 = MNB daily rate, fetched automatically
 
 D_PRICE_STORAGE_KEY = f"{DOMAIN}.d_prices"
 

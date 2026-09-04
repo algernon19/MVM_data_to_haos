@@ -150,12 +150,15 @@ követő entitás használata** opciót, és add meg az `mvm_next:imported_cost`
 mennyibe kerülne ugyanez a fogyasztás a bejelentett **MVM D (dinamikus)** tarifával.
 
 - A D tarifánál is **megmarad a kedvezményes éves keret** (lakossági 2523 kWh): a keretig az
-  A1 kedvezményes ár, **csak a keret feletti rész** megy a 15 perces HUPX tőzsdei áron.
-- Az órás tőzsdei árakat az integráció **letölti az internetről**
-  (`api.energy-charts.info`, ingyenes, token nélkül) – ez az **egyetlen** pont, ahol
-  hálózatot használ. Alapból **ki van kapcsolva**. A letöltött árakat gyorsítótárazza.
+  A1 kedvezményes ár, **csak a keret feletti rész** megy a **15 perces** HUPX tőzsdei áron
+  (a számítás végig negyedórás felbontású, csak a long-term statisztika óránkénti).
+- Az árakat az integráció **letölti az internetről**: a 15 perces HUPX day-ahead árakat a
+  `api.energy-charts.info`-ról (ingyenes, token nélkül), és – ha az árfolyamot `0`-ra
+  állítod – a **napi MNB EUR/HUF árfolyamot** az MNB hivatalos web-szolgáltatásából.
+  Ez az **egyetlen** pont, ahol hálózatot használ. Alapból **ki van kapcsolva**. A
+  letöltött árakat/árfolyamokat lemezre gyorsítótárazza.
 - A D tarifa végleges díjtételei még nem publikusak, ezért **szabadon állíthatók**
-  (kereskedői / átviteli / elosztói díj, ÁFA, EUR/HUF árfolyam). Egységár:
+  (kereskedői / átviteli / elosztói díj, ÁFA). Egységár:
   `(HUPX €/MWh × EUR/HUF ÷ 1000 + díjak) × (1 + ÁFA%)`.
 - Éles indulás legkorábban **2027. január 1.** – addig ez tisztán tájékoztató.
 

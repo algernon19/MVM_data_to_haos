@@ -441,6 +441,19 @@ def _push_cost_statistics(
     return round(running_total, 2)
 
 
+def _sum_to_hourly(per_slot: dict[str, float]) -> dict[str, float]:
+    """Roll a per-15-minute (or any sub-hour) series up to whole hours."""
+    hourly: dict[str, float] = {}
+    for iso, value in per_slot.items():
+        hour = (
+            datetime.fromisoformat(iso)
+            .replace(minute=0, second=0, microsecond=0)
+            .isoformat()
+        )
+        hourly[hour] = round(hourly.get(hour, 0.0) + value, 4)
+    return hourly
+
+
 def _monthly_totals(cost_hourly: dict[str, float]) -> dict[str, float]:
     """{YYYY-MM (Budapest): summed cost} for a cost-per-hour series."""
     months: dict[str, float] = {}
@@ -820,13 +833,17 @@ class MvmImportCoordinator:
 
         # Always compute the tiered cost series: the cost statistic push is
         # optional, but the allowance dashboard needs the yearly figures.
-        cost_hourly = _compute_cost_hourly(
-            merged_hourly,
+        # Tiering runs at 15-minute resolution (the raw meter granularity, and
+        # what the "D" tariff uses); the result is rolled up to hourly for the
+        # long-term statistic.
+        cost_quarterly = _compute_cost_hourly(
+            merged_quarters,
             self.price_low,
             self.price_high,
             self.annual_threshold,
             self.contract_start,
         )
+        cost_hourly = _sum_to_hourly(cost_quarterly)
 
         total_cost: float | None = None
         _LOGGER.info(
@@ -871,22 +888,23 @@ class MvmImportCoordinator:
         d_error: str | None = None
         if self.d_enabled:
             year = self.year_summary["year"]
-            own_hourly = _restrict_from(merged_hourly, self.contract_start)
+            own_quarters = _restrict_from(merged_quarters, self.contract_start)
             try:
                 d_prices, d_meta = await async_d_gross_prices(
                     self.hass,
                     f"{D_PRICE_STORAGE_KEY}_{self.entry.entry_id}",
-                    list(own_hourly),
+                    list(own_quarters),
                     self.d_config,
                 )
-                d_cost_hourly = _compute_cost_hourly(
-                    own_hourly,
+                d_cost_quarterly = _compute_cost_hourly(
+                    own_quarters,
                     self.price_low,
                     self.price_high,
                     self.annual_threshold,
                     self.contract_start,
                     dynamic_high=d_prices,
                 )
+                d_cost_hourly = _sum_to_hourly(d_cost_quarterly)
                 currency = self.hass.config.currency or "HUF"
                 d_total = _push_cost_statistics(
                     self.hass,
@@ -896,14 +914,14 @@ class MvmImportCoordinator:
                     COST_D_STATISTIC_NAME,
                 )
                 a1_monthly = _monthly_totals(
-                    _restrict_from(cost_hourly, self.contract_start)
+                    _restrict_from(cost_quarterly, self.contract_start)
                 )
-                d_monthly = _monthly_totals(d_cost_hourly)
+                d_monthly = _monthly_totals(d_cost_quarterly)
                 months = sorted(set(a1_monthly) | set(d_monthly))
                 d_year = round(
                     sum(
                         c
-                        for iso, c in d_cost_hourly.items()
+                        for iso, c in d_cost_quarterly.items()
                         if datetime.fromisoformat(iso).astimezone(BUDAPEST_TZ).year
                         == year
                     ),
@@ -916,8 +934,9 @@ class MvmImportCoordinator:
                         "d_total_cost": d_total,
                         "year_cost_d": d_year,
                         "year_cost_a1_vs_d": round(d_year - a1_year, 2),
-                        "d_hours_priced": d_meta.get("hours_priced"),
-                        "d_hours_total": d_meta.get("hours_total"),
+                        "d_slots_priced": d_meta.get("slots_priced"),
+                        "d_slots_total": d_meta.get("slots_total"),
+                        "d_eur_huf_source": d_meta.get("eur_huf"),
                         "monthly_comparison": [
                             {
                                 "month": m,
@@ -929,10 +948,11 @@ class MvmImportCoordinator:
                     }
                 )
                 _LOGGER.info(
-                    "MVM Next: D tarifa – %d/%d óra beárazva, idei D költség %.0f, "
-                    "A1 %.0f (különbség %.0f)",
-                    d_meta.get("hours_priced", 0),
-                    d_meta.get("hours_total", 0),
+                    "MVM Next: D tarifa – %d/%d negyedóra beárazva (%s árfolyam), "
+                    "idei D költség %.0f, A1 %.0f (különbség %.0f)",
+                    d_meta.get("slots_priced", 0),
+                    d_meta.get("slots_total", 0),
+                    d_meta.get("eur_huf"),
                     d_year,
                     a1_year,
                     d_year - a1_year,

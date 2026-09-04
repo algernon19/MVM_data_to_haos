@@ -30,14 +30,14 @@
       },
       "d_tariff": {
         "title": "D (dinamikus) tarifa – mi lenne, ha…",
-        "description": "A már importált fogyasztásra kiszámolja, mennyibe kerülne az MVM D (dinamikus) tarifával, és összehasonlítja a jelenlegi A1 árral. A D tarifánál is megmarad a kedvezményes éves keret (2523 kWh lakossági): a keretig az A1 kedvezményes ár, csak a keret feletti rész megy a 15 perces HUPX-alapú tőzsdei áron. Az órás tőzsdei árakat internetről tölti le (api.energy-charts.info) – ez az egyetlen pont, ahol az integráció hálózatot használ. A D tarifa végleges díjtételei még nem publikusak, ezért szabadon állíthatók (az alapértékek becslések). Az egységár képlete: (HUPX €/MWh × EUR/HUF ÷ 1000 + kereskedői + átviteli + elosztói díj) × (1 + ÁFA%). Legkorábbi éles indulás: 2027. január 1.",
+        "description": "A már importált fogyasztásra kiszámolja, mennyibe kerülne az MVM D (dinamikus) tarifával, és összehasonlítja a jelenlegi A1 árral. A D tarifánál is megmarad a kedvezményes éves keret (2523 kWh lakossági): a keretig az A1 kedvezményes ár, csak a keret feletti rész megy a 15 perces HUPX-alapú tőzsdei áron. A 15 perces tőzsdei árakat internetről tölti le (api.energy-charts.info), 0-ás árfolyamnál az MNB napi árfolyamot is – ez az egyetlen pont, ahol az integráció hálózatot használ. A D tarifa végleges díjtételei még nem publikusak, ezért szabadon állíthatók (az alapértékek becslések). Az egységár képlete: (HUPX €/MWh × EUR/HUF ÷ 1000 + kereskedői + átviteli + elosztói díj) × (1 + ÁFA%). Legkorábbi éles indulás: 2027. január 1.",
         "data": {
           "d_enabled": "D tarifa összehasonlítás bekapcsolása",
           "d_merchant_fee_huf_kwh": "Kereskedői díj (Ft/kWh, nettó)",
           "d_transmission_fee_huf_kwh": "Átviteli rendszerhasználati díj (Ft/kWh, nettó)",
           "d_distribution_fee_huf_kwh": "Elosztói rendszerhasználati díj (Ft/kWh, nettó)",
           "d_vat_percent": "ÁFA (%)",
-          "d_eur_huf": "EUR/HUF árfolyam (fix)"
+          "d_eur_huf": "EUR/HUF árfolyam (0 = MNB napi árfolyam automatikusan)"
         }
       },
       "folder": {
