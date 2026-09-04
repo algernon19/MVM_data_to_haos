@@ -508,6 +508,46 @@ def _monthly_totals(cost_hourly: dict[str, float]) -> dict[str, float]:
     return months
 
 
+def _monthly_price_stats(
+    quarters_kwh: dict[str, float], quarter_prices: dict[str, float]
+) -> dict[str, dict[str, float]]:
+    """Per month: plain vs consumption-weighted average dynamic price.
+
+    Answers "did the high bill come from a generally expensive month, or from
+    using electricity specifically during the hours it was expensive?" - if
+    the weighted average is well above the plain one, consumption is
+    concentrated in the pricier slots of that month (e.g. an evening/morning
+    heating peak); if they're close, the month was just expensive throughout.
+    """
+    price_sum: dict[str, float] = {}
+    price_count: dict[str, int] = {}
+    weighted_sum: dict[str, float] = {}
+    weighted_kwh: dict[str, float] = {}
+
+    for quarter_iso, price in quarter_prices.items():
+        month = (
+            datetime.fromisoformat(quarter_iso).astimezone(BUDAPEST_TZ).strftime("%Y-%m")
+        )
+        price_sum[month] = price_sum.get(month, 0.0) + price
+        price_count[month] = price_count.get(month, 0) + 1
+        kwh = quarters_kwh.get(quarter_iso)
+        if kwh:
+            weighted_sum[month] = weighted_sum.get(month, 0.0) + price * kwh
+            weighted_kwh[month] = weighted_kwh.get(month, 0.0) + kwh
+
+    return {
+        month: {
+            "avg_price": round(price_sum[month] / price_count[month], 2),
+            "weighted_avg_price": (
+                round(weighted_sum[month] / weighted_kwh[month], 2)
+                if weighted_kwh.get(month)
+                else None
+            ),
+        }
+        for month in price_sum
+    }
+
+
 def _restrict_from(
     merged_hourly: dict[str, float], start_date: date | None
 ) -> dict[str, float]:
@@ -1034,6 +1074,7 @@ class MvmImportCoordinator:
                     _restrict_from(cost_quarterly, self.contract_start)
                 )
                 d_monthly = _monthly_totals(d_cost_quarterly)
+                price_stats = _monthly_price_stats(own_quarters, d_prices)
                 months = sorted(set(a1_monthly) | set(d_monthly))
                 d_year = round(
                     sum(
@@ -1059,6 +1100,10 @@ class MvmImportCoordinator:
                                 "month": m,
                                 "a1": a1_monthly.get(m, 0.0),
                                 "d": d_monthly.get(m, 0.0),
+                                "avg_price": price_stats.get(m, {}).get("avg_price"),
+                                "weighted_avg_price": price_stats.get(m, {}).get(
+                                    "weighted_avg_price"
+                                ),
                             }
                             for m in months
                         ],
@@ -1108,6 +1153,7 @@ class MvmImportCoordinator:
                 prev_monthly_a1 = _monthly_totals(prev_cost_quarterly)
                 prev_monthly_d: dict[str, float] = {}
                 prev_d_total: float | None = None
+                prev_price_stats: dict[str, dict[str, float]] = {}
 
                 if self.d_enabled:
                     prev_d_prices, prev_d_meta = await async_d_gross_prices(
@@ -1134,6 +1180,9 @@ class MvmImportCoordinator:
                         COST_D_PREVIOUS_STATISTIC_NAME,
                     )
                     prev_monthly_d = _monthly_totals(prev_cost_quarterly_d)
+                    prev_price_stats = _monthly_price_stats(
+                        previous_quarters, prev_d_prices
+                    )
                     _LOGGER.info(
                         "MVM Next: előző lakó – D tarifa %d/%d negyedóra beárazva",
                         prev_d_meta.get("slots_priced", 0),
@@ -1149,6 +1198,10 @@ class MvmImportCoordinator:
                             "month": m,
                             "a1": prev_monthly_a1.get(m, 0.0),
                             "d": prev_monthly_d.get(m, 0.0),
+                            "avg_price": prev_price_stats.get(m, {}).get("avg_price"),
+                            "weighted_avg_price": prev_price_stats.get(m, {}).get(
+                                "weighted_avg_price"
+                            ),
                         }
                         for m in months
                     ],

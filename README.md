@@ -61,6 +61,19 @@ két újabb statisztika jön létre:
 A `sensor.mvm_next_import` attribútumai: `previous_cost_a1_total`, `previous_cost_d_total`,
 `previous_monthly_comparison` (havi A1/D bontás listaként).
 
+**Miért volt egyes hónapokban ennyivel drágább a D?** A `monthly_comparison` /
+`previous_monthly_comparison` lista minden hónapjához két árat is ad:
+
+- `avg_price` – az adott hónap **egyszerű átlag** dinamikus (HUPX-alapú) egységára – „mennyibe
+  került az áram átlagosan azon a hónapon, függetlenül attól, mikor fogyasztottál".
+- `weighted_avg_price` – **fogyasztással súlyozott** átlagár – „mennyit fizettél volna
+  ténylegesen kWh-nként, a te fogyasztási profilod szerint".
+
+Ha a kettő közel esik egymáshoz, az egész hónap drága volt (pl. téli csúcsidőszak). Ha a
+súlyozott érték jóval **magasabb** az egyszerűnél, az azt jelzi, hogy a fogyasztás
+**pont a drága órákra koncentrálódott** (pl. esti/reggeli csúcsban futó fűtés) – ilyenkor a
+D tarifa aránytalanul rosszabbul jön ki, mint egy „átlagos" fogyasztási mintánál.
+
 ---
 
 ## Telepítés
