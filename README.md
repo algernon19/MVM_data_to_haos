@@ -36,6 +36,19 @@ statisztika (fogyasztás és költség) újraszámolódik és lecserélődik a f
 kiveszel a könyvtárból, a hozzá tartozó adatok **kikerülnek** a statisztikából (figyelmeztetés
 a naplóba) – ha meg akarod tartani az előzményt, hagyd a fájlokat a könyvtárban.
 
+### Felhasználóváltás – a korábbi lakó fogyasztása külön
+
+Ha a **Felhasználóváltás dátuma** be van állítva (lásd Költségszámítás lent), a teljes
+mérőóra-előzmény (`mvm_next:imported_consumption`) mellett **két további statisztika** is
+létrejön, hogy a korábbi lakó fogyasztása külön nézhető/kirajzolható legyen, de a
+keret- és költségszámításba **ne** számítson bele:
+
+- **`mvm_next:imported_consumption_own`** – a fogyasztásod a felhasználóváltás dátumától.
+- **`mvm_next:imported_consumption_previous`** – minden, ami **azelőtt** volt (a korábbi lakóé).
+
+A `sensor.mvm_next_import` attribútumaiban is megjelenik: `previous_tenant_kwh` (összesen
+hány kWh volt a váltás előtt) és `previous_tenant_monthly` (havi bontásban).
+
 ---
 
 ## Telepítés

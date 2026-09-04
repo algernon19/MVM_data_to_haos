@@ -56,6 +56,10 @@ from .const import (
     SIGNAL_UPDATE,
     STATISTIC_ID,
     STATISTIC_NAME,
+    STATISTIC_OWN_ID,
+    STATISTIC_OWN_NAME,
+    STATISTIC_PREVIOUS_ID,
+    STATISTIC_PREVIOUS_NAME,
     STATISTIC_UNIT,
     STATISTIC_UNIT_CLASS,
     STORAGE_KEY,
@@ -314,8 +318,13 @@ def _clear_then_add(
     async_add_external_statistics(hass, metadata, statistics)
 
 
-def _push_statistics(hass: HomeAssistant, merged_hourly: dict[str, float]) -> float:
-    """Push the full recomputed hourly series as external long-term statistics.
+def _push_statistics(
+    hass: HomeAssistant,
+    merged_hourly: dict[str, float],
+    statistic_id: str = STATISTIC_ID,
+    name: str = STATISTIC_NAME,
+) -> float:
+    """Push a recomputed hourly energy series as an external long-term statistic.
 
     The whole series is recomputed from the earliest known hour every time and
     fully replaces the stored statistic, so the cumulative "sum" stays
@@ -323,9 +332,9 @@ def _push_statistics(hass: HomeAssistant, merged_hourly: dict[str, float]) -> fl
     """
 
     metadata: StatisticMetaData = {
-        "statistic_id": STATISTIC_ID,
-        "source": STATISTIC_ID.split(":", 1)[0],
-        "name": STATISTIC_NAME,
+        "statistic_id": statistic_id,
+        "source": statistic_id.split(":", 1)[0],
+        "name": name,
         "unit_of_measurement": STATISTIC_UNIT,
         "has_sum": True,
         "unit_class": STATISTIC_UNIT_CLASS,
@@ -348,7 +357,7 @@ def _push_statistics(hass: HomeAssistant, merged_hourly: dict[str, float]) -> fl
             }
         )
 
-    _clear_then_add(hass, STATISTIC_ID, metadata, statistics)
+    _clear_then_add(hass, statistic_id, metadata, statistics)
     return round(running_total, 3)
 
 
@@ -504,6 +513,19 @@ def _restrict_from(
         iso: kwh
         for iso, kwh in merged_hourly.items()
         if datetime.fromisoformat(iso).astimezone(BUDAPEST_TZ).date() >= start_date
+    }
+
+
+def _restrict_before(
+    merged_hourly: dict[str, float], start_date: date | None
+) -> dict[str, float]:
+    """Only the hours before start_date - the previous account holder's."""
+    if start_date is None:
+        return {}
+    return {
+        iso: kwh
+        for iso, kwh in merged_hourly.items()
+        if datetime.fromisoformat(iso).astimezone(BUDAPEST_TZ).date() < start_date
     }
 
 
@@ -886,6 +908,28 @@ class MvmImportCoordinator:
         # event loop, not in an executor thread.
         total_energy = _push_statistics(self.hass, merged_hourly)
 
+        # If a contract-start date is set, also split the raw meter history
+        # into "yours" and "the previous account holder's" as their own
+        # statistics - so both remain visible/chartable on their own, while
+        # only the "own" part (and everything, if no date is set) feeds the
+        # cost/allowance calculation below.
+        previous_total_kwh = 0.0
+        previous_monthly: dict[str, float] = {}
+        if self.contract_start is not None:
+            own_consumption = _restrict_from(merged_hourly, self.contract_start)
+            previous_consumption = _restrict_before(merged_hourly, self.contract_start)
+            _push_statistics(
+                self.hass, own_consumption, STATISTIC_OWN_ID, STATISTIC_OWN_NAME
+            )
+            _push_statistics(
+                self.hass,
+                previous_consumption,
+                STATISTIC_PREVIOUS_ID,
+                STATISTIC_PREVIOUS_NAME,
+            )
+            previous_total_kwh = round(sum(previous_consumption.values()), 2)
+            previous_monthly = _monthly_totals(previous_consumption)
+
         # Always compute the tiered cost series: the cost statistic push is
         # optional, but the allowance dashboard needs the yearly figures.
         # Tiering runs at 15-minute resolution (the raw meter granularity, and
@@ -1043,6 +1087,14 @@ class MvmImportCoordinator:
             "import_dir": str(self.import_dir),
             "statistic_id": STATISTIC_ID,
             "cost_statistic_id": COST_STATISTIC_ID if self.cost_enabled else None,
+            "own_consumption_statistic_id": (
+                STATISTIC_OWN_ID if self.contract_start else None
+            ),
+            "previous_consumption_statistic_id": (
+                STATISTIC_PREVIOUS_ID if self.contract_start else None
+            ),
+            "previous_tenant_kwh": previous_total_kwh,
+            "previous_tenant_monthly": previous_monthly or None,
         }
 
         await self._async_save_cache()

@@ -14,6 +14,15 @@ STATISTIC_NAME = "MVM Next – Vételezett fogyasztás"
 STATISTIC_UNIT = "kWh"
 STATISTIC_UNIT_CLASS = "energy"
 
+# Split out when a "contract start date" (felhasználóváltás) is set: the
+# consumption from that date on is "yours", everything before it belonged to
+# the previous account holder. STATISTIC_ID above always keeps the full,
+# unsplit meter history regardless of this setting.
+STATISTIC_OWN_ID = "mvm_next:imported_consumption_own"
+STATISTIC_OWN_NAME = "MVM Next – Saját fogyasztás (felhasználóváltás óta)"
+STATISTIC_PREVIOUS_ID = "mvm_next:imported_consumption_previous"
+STATISTIC_PREVIOUS_NAME = "MVM Next – Előző felhasználó fogyasztása"
+
 # Second, derived statistic: the cost of the imported consumption, computed
 # from the Hungarian tiered household tariff. Its unit is the HA-configured
 # currency so the Energy dashboard accepts it under "total cost".
