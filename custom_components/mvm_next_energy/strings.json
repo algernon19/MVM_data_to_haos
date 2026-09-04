@@ -36,12 +36,13 @@
       },
       "pricing": {
         "title": "Költségszámítás",
-        "description": "A fogyasztás mellé a rendszer feltölt egy `mvm_next:imported_cost` költség-statisztikát is (a Home Assistantban beállított pénznemben – állítsd HUF-ra). Sávos lakossági ár: az éves keretig a kedvezményes, felette a piaci egységár. Az éves keret naptári évenként nullázódik. Mentés után minden korábbi import újraszámolódik.",
+        "description": "A fogyasztás mellé a rendszer feltölt egy `mvm_next:imported_cost` költség-statisztikát is (a Home Assistantban beállított pénznemben – állítsd HUF-ra). Sávos lakossági ár: az éves keretig a kedvezményes, felette a piaci egységár. Az éves keret naptári évenként nullázódik. Ha megadod a felhasználóváltás dátumát, az előtti fogyasztás (az előző felhasználóé) kimarad, és arra az évre a keret időarányosan csökken. Mentés után minden korábbi import újraszámolódik.",
         "data": {
           "cost_enabled": "Költség-statisztika feltöltése",
           "price_low": "Kedvezményes ár (Ft/kWh, bruttó)",
           "price_high": "Piaci ár a keret felett (Ft/kWh, bruttó)",
-          "annual_threshold_kwh": "Éves kedvezményes keret (kWh)"
+          "annual_threshold_kwh": "Éves kedvezményes keret (kWh)",
+          "start_date": "Felhasználóváltás dátuma (opcionális)"
         }
       },
       "upload": {

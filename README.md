@@ -131,9 +131,15 @@ A számítás a **sávos lakossági villamosenergia-árat** követi:
 A keret minden naptári év elején nullázódik. A keretet átlépő óra arányosan
 kerül megosztásra a két ár között.
 
-A három érték és a be-/kikapcsolás a **Beállítás (Configure) → Áram ára / költségszámítás
-beállítása** menüben módosítható; mentés után minden korábbi import automatikusan
-újraszámolódik (a CSV-ket nem kell újra beolvasni).
+**Felhasználóváltás:** ha megadod a szerződésed kezdő dátumát (pl. beköltözés napja),
+akkor az az előtti fogyasztás – ami még az előző felhasználóé – **kimarad** a
+költségből és a keretszámításból, és arra a naptári évre a kedvezményes keret
+**időarányosan** csökken (2523 × hátralévő napok ÷ 365). A következő teljes évtől
+újra a teljes keret érvényes.
+
+A beállítások (árak, keret, kezdő dátum, be-/kikapcsolás) a **Beállítás (Configure) →
+Áram ára / költségszámítás beállítása** menüben módosíthatók; mentés után minden korábbi
+import automatikusan újraszámolódik (a CSV-ket nem kell újra beolvasni).
 
 Az Energia irányítópulton a „Hálózati fogyasztás" forrásnál válaszd a **Teljes költségeket
 követő entitás használata** opciót, és add meg az `mvm_next:imported_cost` statisztikát.
@@ -183,8 +189,9 @@ Az integráció egy „MVM Next Energy Import” eszközt hoz létre a következ
 | Entitás | Típus | Leírás |
 |---------|-------|--------|
 | MVM Next Import | `sensor` | Állapota a legutolsó importált negyedóra (helyi idő). Attribútumai: `last_import`, `imported_quarters`, `imported_hours`, `total_energy`, `total_cost`, `meter_serial`, `source_file`, `import_dir`, `statistic_id`, `cost_statistic_id`. |
-| MVM Next Éves fogyasztás | `sensor` | Az **idei naptári évben** eddig fogyasztott kWh. |
-| MVM Next Hátralévő kedvezményes keret | `sensor` | Mennyi kWh van még a kedvezményes éves keretből (2523 − idei fogyasztás). |
+| MVM Next Éves fogyasztás | `sensor` | Az **idei naptári évben** eddig fogyasztott kWh (a felhasználóváltás dátumától). |
+| MVM Next Idei kedvezményes keret | `sensor` | Az erre az évre érvényes kedvezményes keret (időarányos, ha felhasználóváltás volt). |
+| MVM Next Hátralévő kedvezményes keret | `sensor` | Mennyi kWh van még az idei kedvezményes keretből. |
 | MVM Next Kedvezményes keret kihasználtság | `sensor` | Az éves keret kihasználtsága százalékban (gauge kártyához). |
 | MVM Next Éves költség | `sensor` | Az idei fogyasztás költsége a beállított pénznemben. |
 | MVM Next Aktuális ársáv | `sensor` | `kedvezményes` vagy `piaci` – melyik egységáron vagy éppen. |

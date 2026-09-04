@@ -11,7 +11,11 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.selector import FileSelector, FileSelectorConfig
+from homeassistant.helpers.selector import (
+    DateSelector,
+    FileSelector,
+    FileSelectorConfig,
+)
 
 from .const import (
     ATTR_FILE,
@@ -20,6 +24,7 @@ from .const import (
     CONF_IMPORT_DIR,
     CONF_PRICE_HIGH,
     CONF_PRICE_LOW,
+    CONF_START_DATE,
     DEFAULT_ANNUAL_THRESHOLD,
     DEFAULT_COST_ENABLED,
     DEFAULT_PRICE_HIGH,
@@ -132,9 +137,10 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
                 CONF_PRICE_LOW: user_input[CONF_PRICE_LOW],
                 CONF_PRICE_HIGH: user_input[CONF_PRICE_HIGH],
                 CONF_ANNUAL_THRESHOLD: user_input[CONF_ANNUAL_THRESHOLD],
+                CONF_START_DATE: user_input.get(CONF_START_DATE, ""),
             }
             # The entry update listener re-pushes both statistics with the new
-            # prices (no CSV re-parse needed).
+            # settings (no CSV re-parse needed).
             return self.async_create_entry(title="", data=new_options)
 
         schema = vol.Schema(
@@ -157,6 +163,12 @@ class MvmNextEnergyOptionsFlow(config_entries.OptionsFlow):
                         CONF_ANNUAL_THRESHOLD, DEFAULT_ANNUAL_THRESHOLD
                     ),
                 ): vol.Coerce(float),
+                vol.Optional(
+                    CONF_START_DATE,
+                    description={
+                        "suggested_value": current.get(CONF_START_DATE) or None
+                    },
+                ): DateSelector(),
             }
         )
         return self.async_show_form(step_id="pricing", data_schema=schema)

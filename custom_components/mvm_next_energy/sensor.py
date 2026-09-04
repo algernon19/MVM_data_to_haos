@@ -32,6 +32,12 @@ SUMMARY_SENSORS: tuple[MvmSummarySensor, ...] = (
         unit="kWh",
     ),
     MvmSummarySensor(
+        key="year_allowance",
+        name="MVM Next Idei kedvezményes keret",
+        icon="mdi:gauge-low",
+        unit="kWh",
+    ),
+    MvmSummarySensor(
         key="allowance_remaining",
         name="MVM Next Hátralévő kedvezményes keret",
         icon="mdi:gauge",

@@ -27,6 +27,10 @@ CONF_COST_ENABLED = "cost_enabled"
 CONF_PRICE_LOW = "price_low"
 CONF_PRICE_HIGH = "price_high"
 CONF_ANNUAL_THRESHOLD = "annual_threshold_kwh"
+# Date the current account holder's contract started. Consumption before it
+# belongs to the previous user; for the calendar year it falls in, the yearly
+# allowance is prorated by the number of days remaining in that year.
+CONF_START_DATE = "start_date"
 DEFAULT_COST_ENABLED = True
 DEFAULT_PRICE_LOW = 36.39
 DEFAULT_PRICE_HIGH = 70.104

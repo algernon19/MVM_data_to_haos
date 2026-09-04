@@ -25,6 +25,7 @@ from .const import (
     CONF_IMPORT_DIR,
     CONF_PRICE_HIGH,
     CONF_PRICE_LOW,
+    CONF_START_DATE,
     COST_STATISTIC_ID,
     COST_STATISTIC_NAME,
     CSV_DIRECTION,
@@ -329,28 +330,48 @@ def _push_statistics(hass: HomeAssistant, merged_hourly: dict[str, float]) -> fl
     return round(running_total, 3)
 
 
+def _year_allowance(
+    year: int, base_threshold: float, start_date: date | None
+) -> float:
+    """Yearly reduced-price allowance, prorated for a mid-year contract start."""
+    if start_date is None or year != start_date.year:
+        return base_threshold
+    days_in_year = 366 if calendar.isleap(year) else 365
+    covered = days_in_year - start_date.timetuple().tm_yday + 1
+    return round(base_threshold * covered / days_in_year, 1)
+
+
 def _compute_cost_hourly(
     merged_hourly: dict[str, float],
     price_low: float,
     price_high: float,
     annual_threshold: float,
+    start_date: date | None = None,
 ) -> dict[str, float]:
     """Apply the tiered household tariff to each hour of the series.
 
-    Within a calendar year the consumption up to ``annual_threshold`` kWh is
-    billed at ``price_low``; every kWh above it at ``price_high``. Hours are
-    processed in chronological order so an hour that straddles the threshold is
-    split proportionally. Year boundaries use Europe/Budapest local time.
+    Within a calendar year the consumption up to the yearly allowance is billed
+    at ``price_low``; every kWh above it at ``price_high``. Hours are processed
+    in chronological order so an hour that straddles the threshold is split
+    proportionally. Year boundaries use Europe/Budapest local time.
+
+    Consumption before ``start_date`` (the account holder's contract start)
+    belongs to the previous user and is left out of the cost series; for the
+    year the start date falls in, the allowance is prorated by day count.
     """
     year_used: dict[int, float] = {}
     cost_hourly: dict[str, float] = {}
 
     for start_iso in sorted(merged_hourly):
+        local = datetime.fromisoformat(start_iso).astimezone(BUDAPEST_TZ)
+        if start_date is not None and local.date() < start_date:
+            continue
         kwh = merged_hourly[start_iso]
-        year = datetime.fromisoformat(start_iso).astimezone(BUDAPEST_TZ).year
+        year = local.year
+        allowance = _year_allowance(year, annual_threshold, start_date)
         used = year_used.get(year, 0.0)
 
-        low_part = max(0.0, min(kwh, annual_threshold - used))
+        low_part = max(0.0, min(kwh, allowance - used))
         high_part = kwh - low_part
         cost_hourly[start_iso] = round(
             low_part * price_low + high_part * price_high, 4
@@ -398,22 +419,28 @@ def _compute_year_summary(
     merged_hourly: dict[str, float],
     cost_hourly: dict[str, float],
     annual_threshold: float,
+    start_date: date | None = None,
 ) -> dict[str, object]:
     """Current-calendar-year figures for the allowance dashboard.
 
     The tiered allowance resets on 1 January, so the dashboard tracks where
     this year stands: kWh used, kWh left at the reduced price, which price
     tier is active now and - from the average daily use so far this year -
-    an estimate of when the market price kicks in.
+    an estimate of when the market price kicks in. Consumption before
+    ``start_date`` (a mid-year contract start) is ignored and the allowance
+    is prorated for that year.
     """
     now_local = datetime.now(BUDAPEST_TZ)
     year = now_local.year
+    allowance = _year_allowance(year, annual_threshold, start_date)
 
     year_hours: dict[date, float] = {}
     year_kwh = 0.0
     for start_iso, kwh in merged_hourly.items():
         local = datetime.fromisoformat(start_iso).astimezone(BUDAPEST_TZ)
         if local.year != year:
+            continue
+        if start_date is not None and local.date() < start_date:
             continue
         year_kwh += kwh
         day = local.date()
@@ -428,10 +455,8 @@ def _compute_year_summary(
         2,
     )
 
-    remaining = round(annual_threshold - year_kwh, 1)
-    used_pct = (
-        round(year_kwh / annual_threshold * 100, 1) if annual_threshold else 0.0
-    )
+    remaining = round(allowance - year_kwh, 1)
+    used_pct = round(year_kwh / allowance * 100, 1) if allowance else 0.0
     tier = "piaci" if remaining <= 0 else "kedvezmenyes"
 
     crossover = "atlepve" if remaining <= 0 else "ismeretlen"
@@ -448,6 +473,7 @@ def _compute_year_summary(
 
     return {
         "year": year,
+        "year_allowance": round(allowance, 1),
         "year_consumption": round(year_kwh, 2),
         "year_cost": year_cost,
         "allowance_remaining": remaining,
@@ -455,6 +481,7 @@ def _compute_year_summary(
         "price_tier": tier,
         "tier_crossover_estimate": crossover,
         "data_through": max(year_hours).isoformat() if year_hours else None,
+        "contract_start": start_date.isoformat() if start_date else None,
     }
 
 
@@ -503,6 +530,17 @@ class MvmImportCoordinator:
     @property
     def annual_threshold(self) -> float:
         return float(self._opt(CONF_ANNUAL_THRESHOLD, DEFAULT_ANNUAL_THRESHOLD))
+
+    @property
+    def contract_start(self) -> date | None:
+        raw = str(self._opt(CONF_START_DATE, "") or "").strip()
+        if not raw:
+            return None
+        try:
+            return date.fromisoformat(raw)
+        except ValueError:
+            _LOGGER.warning("MVM Next: érvénytelen felhasználóváltás dátum: %s", raw)
+            return None
 
     async def async_load_cache(self) -> None:
         stored = await self._store.async_load()
@@ -717,6 +755,7 @@ class MvmImportCoordinator:
             self.price_low,
             self.price_high,
             self.annual_threshold,
+            self.contract_start,
         )
 
         total_cost: float | None = None
@@ -752,7 +791,7 @@ class MvmImportCoordinator:
                 )
 
         self.year_summary = _compute_year_summary(
-            merged_hourly, cost_hourly, self.annual_threshold
+            merged_hourly, cost_hourly, self.annual_threshold, self.contract_start
         )
         _LOGGER.info("MVM Next: idei összegzés: %s", self.year_summary)
 
