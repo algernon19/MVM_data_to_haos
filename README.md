@@ -183,10 +183,82 @@ Az integráció egy „MVM Next Energy Import” eszközt hoz létre a következ
 | Entitás | Típus | Leírás |
 |---------|-------|--------|
 | MVM Next Import | `sensor` | Állapota a legutolsó importált negyedóra (helyi idő). Attribútumai: `last_import`, `imported_quarters`, `imported_hours`, `total_energy`, `total_cost`, `meter_serial`, `source_file`, `import_dir`, `statistic_id`, `cost_statistic_id`. |
+| MVM Next Éves fogyasztás | `sensor` | Az **idei naptári évben** eddig fogyasztott kWh. |
+| MVM Next Hátralévő kedvezményes keret | `sensor` | Mennyi kWh van még a kedvezményes éves keretből (2523 − idei fogyasztás). |
+| MVM Next Kedvezményes keret kihasználtság | `sensor` | Az éves keret kihasználtsága százalékban (gauge kártyához). |
+| MVM Next Éves költség | `sensor` | Az idei fogyasztás költsége a beállított pénznemben. |
+| MVM Next Aktuális ársáv | `sensor` | `kedvezményes` vagy `piaci` – melyik egységáron vagy éppen. |
+| MVM Next Becsült sávváltás | `sensor` | Az eddigi éves átlagfogyasztásból becsült dátum, amikor piaci árra vált (vagy „átlépve" / „2026. után"). |
 | MVM CSV importálása | `button` | Megnyomásra átvizsgálja az import könyvtárat és feltölti a frissített statisztikát. |
 
 A feltöltött long-term statisztika azonosítója: **`mvm_next:imported_consumption`**
 (mértékegység: `kWh`, energia, halmozott összeggel).
+
+---
+
+## Példa irányítópult (Lovelace)
+
+Új nézet a fogyasztással, költséggel és a kedvezményes keret állásával. Illeszd be
+**nyers konfigurációban** (irányítópult → ⋮ → *Nyers konfigurációs szerkesztő*), vagy egy
+manuális kártyaként. A `statistic` kártyák bárhol működnek, nem csak az Energia nézetben.
+
+```yaml
+title: MVM Next
+path: mvm-next
+cards:
+  - type: gauge
+    name: Kedvezményes keret kihasználtság
+    entity: sensor.mvm_next_kedvezmenyes_keret_kihasznaltsag
+    unit: "%"
+    min: 0
+    max: 100
+    needle: true
+    severity:
+      green: 0
+      yellow: 80
+      red: 100
+
+  - type: entities
+    title: Idei év
+    entities:
+      - entity: sensor.mvm_next_eves_fogyasztas
+      - entity: sensor.mvm_next_hatralevo_kedvezmenyes_keret
+      - entity: sensor.mvm_next_aktualis_arsav
+      - entity: sensor.mvm_next_becsult_savvaltas
+      - entity: sensor.mvm_next_eves_koltseg
+      - entity: sensor.mvm_next_import
+        name: Utolsó importált negyedóra
+
+  - type: statistic
+    name: Éves fogyasztás
+    entity: mvm_next:imported_consumption
+    stat_type: change
+    period:
+      calendar:
+        period: year
+
+  - type: statistics-graph
+    title: Havi fogyasztás
+    chart_type: bar
+    period: month
+    stat_types:
+      - change
+    entities:
+      - mvm_next:imported_consumption
+
+  - type: statistics-graph
+    title: Havi költség
+    chart_type: bar
+    period: month
+    stat_types:
+      - change
+    entities:
+      - mvm_next:imported_cost
+```
+
+Az entitás-azonosítók a fenti nevekből képződnek; ha a Home Assistant másképp
+generálta őket, a **Fejlesztői eszközök → Állapotok**-ban nézd meg a pontos neveket
+és írd át a YAML-ben.
 
 ---
 

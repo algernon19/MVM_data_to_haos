@@ -7,7 +7,7 @@ import logging
 import re
 import shutil
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -394,6 +394,70 @@ def _push_cost_statistics(
     return round(running_total, 2)
 
 
+def _compute_year_summary(
+    merged_hourly: dict[str, float],
+    cost_hourly: dict[str, float],
+    annual_threshold: float,
+) -> dict[str, object]:
+    """Current-calendar-year figures for the allowance dashboard.
+
+    The tiered allowance resets on 1 January, so the dashboard tracks where
+    this year stands: kWh used, kWh left at the reduced price, which price
+    tier is active now and - from the average daily use so far this year -
+    an estimate of when the market price kicks in.
+    """
+    now_local = datetime.now(BUDAPEST_TZ)
+    year = now_local.year
+
+    year_hours: dict[date, float] = {}
+    year_kwh = 0.0
+    for start_iso, kwh in merged_hourly.items():
+        local = datetime.fromisoformat(start_iso).astimezone(BUDAPEST_TZ)
+        if local.year != year:
+            continue
+        year_kwh += kwh
+        day = local.date()
+        year_hours[day] = year_hours.get(day, 0.0) + kwh
+
+    year_cost = round(
+        sum(
+            cost
+            for start_iso, cost in cost_hourly.items()
+            if datetime.fromisoformat(start_iso).astimezone(BUDAPEST_TZ).year == year
+        ),
+        2,
+    )
+
+    remaining = round(annual_threshold - year_kwh, 1)
+    used_pct = (
+        round(year_kwh / annual_threshold * 100, 1) if annual_threshold else 0.0
+    )
+    tier = "piaci" if remaining <= 0 else "kedvezmenyes"
+
+    crossover = "atlepve" if remaining <= 0 else "ismeretlen"
+    if year_hours and remaining > 0:
+        first_day = min(year_hours)
+        last_day = max(year_hours)
+        span_days = max(1, (last_day - first_day).days + 1)
+        daily_avg = year_kwh / span_days
+        if daily_avg > 0:
+            hit = last_day + timedelta(days=remaining / daily_avg)
+            crossover = (
+                f"{year}. utan" if hit.year > year else hit.isoformat()
+            )
+
+    return {
+        "year": year,
+        "year_consumption": round(year_kwh, 2),
+        "year_cost": year_cost,
+        "allowance_remaining": remaining,
+        "allowance_used_pct": used_pct,
+        "price_tier": tier,
+        "tier_crossover_estimate": crossover,
+        "data_through": max(year_hours).isoformat() if year_hours else None,
+    }
+
+
 class MvmImportCoordinator:
     """Owns the import directory scan, on-disk cache and statistics push."""
 
@@ -403,6 +467,7 @@ class MvmImportCoordinator:
         self._store: Store = Store(hass, STORAGE_VERSION, f"{STORAGE_KEY}_{entry.entry_id}")
         self._files: dict[str, ParsedFile] = {}
         self.attributes: dict[str, object] = {}
+        self.year_summary: dict[str, object] = {}
         self.state_last_quarter: str | None = None
 
         self.device_info = DeviceInfo(
@@ -451,6 +516,7 @@ class MvmImportCoordinator:
                 # re-parsed from disk on the next import.
                 _LOGGER.debug("MVM Next: elavult gyorsítótár-bejegyzés eldobva: %s", name)
         self.attributes = stored.get("attributes", {})
+        self.year_summary = stored.get("year_summary", {})
         self.state_last_quarter = stored.get("state_last_quarter")
 
     async def _async_save_cache(self) -> None:
@@ -458,6 +524,7 @@ class MvmImportCoordinator:
             {
                 "files": {name: pf.__dict__ for name, pf in self._files.items()},
                 "attributes": self.attributes,
+                "year_summary": self.year_summary,
                 "state_last_quarter": self.state_last_quarter,
             }
         )
@@ -643,6 +710,15 @@ class MvmImportCoordinator:
         # event loop, not in an executor thread.
         total_energy = _push_statistics(self.hass, merged_hourly)
 
+        # Always compute the tiered cost series: the cost statistic push is
+        # optional, but the allowance dashboard needs the yearly figures.
+        cost_hourly = _compute_cost_hourly(
+            merged_hourly,
+            self.price_low,
+            self.price_high,
+            self.annual_threshold,
+        )
+
         total_cost: float | None = None
         _LOGGER.info(
             "MVM Next: költségszámítás %s (pénznem=%s, árak=%.2f / %.3f, keret=%.0f kWh)",
@@ -655,12 +731,6 @@ class MvmImportCoordinator:
         cost_error: str | None = None
         if self.cost_enabled:
             currency = self.hass.config.currency or "HUF"
-            cost_hourly = _compute_cost_hourly(
-                merged_hourly,
-                self.price_low,
-                self.price_high,
-                self.annual_threshold,
-            )
             try:
                 total_cost = _push_cost_statistics(self.hass, currency, cost_hourly)
             except Exception as err:  # noqa: BLE001 - keep the consumption import intact
@@ -680,6 +750,11 @@ class MvmImportCoordinator:
                     currency,
                     self.annual_threshold,
                 )
+
+        self.year_summary = _compute_year_summary(
+            merged_hourly, cost_hourly, self.annual_threshold
+        )
+        _LOGGER.info("MVM Next: idei összegzés: %s", self.year_summary)
 
         now_local = datetime.now(BUDAPEST_TZ)
         self.state_last_quarter = (

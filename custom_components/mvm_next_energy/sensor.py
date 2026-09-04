@@ -1,6 +1,8 @@
 """Sensor platform for MVM Next Energy Import."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -11,24 +13,74 @@ from .const import DOMAIN, SIGNAL_UPDATE
 from .importer import MvmImportCoordinator
 
 
+@dataclass(frozen=True, kw_only=True)
+class MvmSummarySensor:
+    """Description of a sensor backed by coordinator.year_summary."""
+
+    key: str
+    name: str
+    icon: str
+    unit: str | None = None
+    currency_unit: bool = False
+
+
+SUMMARY_SENSORS: tuple[MvmSummarySensor, ...] = (
+    MvmSummarySensor(
+        key="year_consumption",
+        name="MVM Next Éves fogyasztás",
+        icon="mdi:counter",
+        unit="kWh",
+    ),
+    MvmSummarySensor(
+        key="allowance_remaining",
+        name="MVM Next Hátralévő kedvezményes keret",
+        icon="mdi:gauge",
+        unit="kWh",
+    ),
+    MvmSummarySensor(
+        key="allowance_used_pct",
+        name="MVM Next Kedvezményes keret kihasználtság",
+        icon="mdi:percent",
+        unit="%",
+    ),
+    MvmSummarySensor(
+        key="year_cost",
+        name="MVM Next Éves költség",
+        icon="mdi:cash-multiple",
+        currency_unit=True,
+    ),
+    MvmSummarySensor(
+        key="price_tier",
+        name="MVM Next Aktuális ársáv",
+        icon="mdi:cash",
+    ),
+    MvmSummarySensor(
+        key="tier_crossover_estimate",
+        name="MVM Next Becsült sávváltás",
+        icon="mdi:calendar-alert",
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    """Set up the MVM Next Energy Import sensor."""
+    """Set up the MVM Next Energy Import sensors."""
     coordinator: MvmImportCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([MvmNextImportSensor(entry, coordinator)])
+    entities: list[SensorEntity] = [MvmNextImportSensor(entry, coordinator)]
+    entities += [
+        MvmNextSummarySensor(entry, coordinator, desc) for desc in SUMMARY_SENSORS
+    ]
+    async_add_entities(entities)
 
 
-class MvmNextImportSensor(SensorEntity):
-    """Shows how far the imported MVM history reaches."""
+class _MvmBaseSensor(SensorEntity):
+    """Shared wiring: refresh on the coordinator's update signal."""
 
-    _attr_name = "MVM Next Import"
-    _attr_icon = "mdi:transmission-tower-import"
     _attr_should_poll = False
 
-    def __init__(self, entry: ConfigEntry, coordinator: MvmImportCoordinator) -> None:
+    def __init__(self, coordinator: MvmImportCoordinator) -> None:
         self._coordinator = coordinator
-        self._attr_unique_id = f"{entry.entry_id}_import"
         self._attr_device_info = coordinator.device_info
 
     async def async_added_to_hass(self) -> None:
@@ -40,6 +92,17 @@ class MvmNextImportSensor(SensorEntity):
     def _handle_update(self) -> None:
         self.async_write_ha_state()
 
+
+class MvmNextImportSensor(_MvmBaseSensor):
+    """Shows how far the imported MVM history reaches."""
+
+    _attr_name = "MVM Next Import"
+    _attr_icon = "mdi:transmission-tower-import"
+
+    def __init__(self, entry: ConfigEntry, coordinator: MvmImportCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry.entry_id}_import"
+
     @property
     def native_value(self) -> str | None:
         return self._coordinator.state_last_quarter
@@ -47,3 +110,47 @@ class MvmNextImportSensor(SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, object]:
         return self._coordinator.attributes
+
+
+class MvmNextSummarySensor(_MvmBaseSensor):
+    """One figure from the current-year allowance summary."""
+
+    def __init__(
+        self,
+        entry: ConfigEntry,
+        coordinator: MvmImportCoordinator,
+        description: MvmSummarySensor,
+    ) -> None:
+        super().__init__(coordinator)
+        self._description = description
+        self._attr_name = description.name
+        self._attr_icon = description.icon
+        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        if self._description.currency_unit:
+            return self.hass.config.currency
+        return self._description.unit
+
+    @property
+    def native_value(self) -> object:
+        value = self._coordinator.year_summary.get(self._description.key)
+        if self._description.key == "price_tier":
+            return {"kedvezmenyes": "kedvezményes", "piaci": "piaci"}.get(
+                value, value
+            )
+        if self._description.key == "tier_crossover_estimate":
+            return {
+                "atlepve": "átlépve",
+                "ismeretlen": "ismeretlen",
+            }.get(value, value)
+        return value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        summary = self._coordinator.year_summary
+        return {
+            "year": summary.get("year"),
+            "data_through": summary.get("data_through"),
+        }
